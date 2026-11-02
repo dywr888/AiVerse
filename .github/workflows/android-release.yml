@@ -103,7 +103,7 @@ jobs:
             echo "|---|---|---|"
             echo "| AiVerse-arm64-v$FULL.apk | arm64-v8a | 新手机（推荐） |"
             echo "| AiVerse-x86_64-v$FULL.apk | x86_64 | 模拟器 / x86 设备 |"
-            echo "| AiVerse-universal-v$FULL.apk | arm64-v8a + x86_64 | 通用（体积大） |"
+            echo "| AiVerse-universal-v$FULL.apk | arm64-v8a + x86_64 | 通用包：同时含两套镜像，兼容所有设备，体积约为单架构包两倍 |"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "versionName=$FULL versionCode=$VC"
 
@@ -118,6 +118,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          body: |
+            ## APK 说明
+
+            | 包名 | ABI | 适用设备 |
+            |---|---|---|
+            | AiVerse-arm64-v${{ steps.version.outputs.full }}.apk | arm64-v8a | 新手机（推荐） |
+            | AiVerse-x86_64-v${{ steps.version.outputs.full }}.apk | x86_64 | 模拟器 / x86 设备 |
+            | AiVerse-universal-v${{ steps.version.outputs.full }}.apk | arm64-v8a + x86_64 | 通用包：同时含两套镜像，兼容所有设备，体积约为单架构包两倍 |
           generate_release_notes: true
           name: "v${{ steps.version.outputs.full }}"
           tag_name: "v${{ steps.version.outputs.full }}"
