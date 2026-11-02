@@ -56,7 +56,6 @@ import com.aiverse.core.ui.FloatingTabItem
 import com.aiverse.core.ui.SwipeToDeleteRow
 import com.aiverse.feature.credentials.domain.model.GitCredential
 import com.aiverse.feature.credentials.presentation.CredentialViewModel
-import com.aiverse.feature.credentials.presentation.QuickLoginUiState
 import com.aiverse.feature.git.presentation.component.SectionHeader
 import com.aiverse.feature.settings.presentation.component.SettingsDivider
 import com.aiverse.feature.settings.presentation.component.SettingsEmptyState
@@ -110,8 +109,6 @@ fun CredentialScreen(
     var isAddingCredential by remember { mutableStateOf(false) }
     // 右上角 + 打开「添加凭据」方式选择弹层；再进入手动添加或快速登录子流程。
     var showAddSheet by remember { mutableStateOf(false) }
-    var showQuickLoginSheet by remember { mutableStateOf(false) }
-    val quickLoginState by viewModel.quickLogin.collectAsStateWithLifecycle()
 
     Scaffold(
         containerColor = settingsPageBackground(),
@@ -248,31 +245,7 @@ fun CredentialScreen(
                 showAddSheet = false
                 isAddingCredential = true
             },
-            onQuickLogin = {
-                showAddSheet = false
-                viewModel.startGitHubLogin()
-            },
             onDismiss = { showAddSheet = false }
-        )
-    }
-
-    if (showQuickLoginSheet) {
-        QuickLoginSheet(
-            onSelectGitHub = {
-                showQuickLoginSheet = false
-                viewModel.startGitHubLogin()
-            },
-            onDismiss = { showQuickLoginSheet = false }
-        )
-    }
-
-    // 设备码流进行中（请求/等待/成功/失败）时展示登录弹层。
-    if (quickLoginState !is QuickLoginUiState.Idle) {
-        GitHubDeviceFlowSheet(
-            state = quickLoginState,
-            onCancel = { viewModel.cancelQuickLogin() },
-            onRetry = { viewModel.startGitHubLogin() },
-            onSuccessDismiss = { viewModel.consumeQuickLoginResult() }
         )
     }
 

@@ -15,15 +15,13 @@ import androidx.compose.ui.text.font.FontWeight
 import com.aiverse.R
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.ui.AdaptiveModalBottomSheet
-import com.aiverse.feature.settings.presentation.component.SettingsDivider
 import com.aiverse.feature.settings.presentation.component.SettingsGroup
 import com.aiverse.feature.settings.presentation.component.SettingsRow
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Edit3
-import compose.icons.feathericons.Github
 
 /**
- * 「添加凭据」底部弹层：提供推荐的 GitHub OAuth 设备码快捷登录与手动配置两种方式。
+ * 「添加凭据」底部弹层：提供手动配置凭据入口。
  *
  * 版式与 [com.aiverse.feature.settings.presentation.component.McpAddSheet]、
  * [com.aiverse.feature.settings.presentation.component.SkillAddSheet] 保持一致：
@@ -33,7 +31,6 @@ import compose.icons.feathericons.Github
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun CredentialAddSheet(
     onManual: () -> Unit,
-    onQuickLogin: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AdaptiveModalBottomSheet(
@@ -56,13 +53,6 @@ internal fun CredentialAddSheet(
             )
 
             SettingsGroup {
-                SettingsRow(
-                    icon = FeatherIcons.Github,
-                    title = stringResource(R.string.credential_add_github_title),
-                    subtitle = stringResource(R.string.credential_add_github_desc),
-                    onClick = onQuickLogin
-                )
-                SettingsDivider()
                 SettingsRow(
                     icon = FeatherIcons.Edit3,
                     title = stringResource(R.string.credential_add_manual_title),
