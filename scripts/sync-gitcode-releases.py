@@ -5,14 +5,10 @@
   GITCODE_TOKEN=<token> python3 scripts/sync-gitcode-releases.py            # 同步保留集合
   GITCODE_TOKEN=<token> python3 scripts/sync-gitcode-releases.py --all      # 同步 GitHub 全部 Release
 
-保留集合（未设 RELEASE_FILTER 时自动推导）：
-  仅最新 KEEP_STABLE 个正式版（默认 3），不包含 RC（GitCode 上 RC 无法标记预发布，
-  且轻量同步即可满足国内下载需求）；--all 可全量同步 GitHub 全部 Release。
-
 可选环境变量：
   GH_REPO         GitHub 仓库，默认 yhdmgf/AiVerse
-  GITCODE_OWNER   GitCode 用户名，默认取 GH_REPO 同名
-  GITCODE_REPO    GitCode 仓库名，默认取 GH_REPO 同名
+  GITCODE_OWNER   GitCode 用户名，默认 qldwi
+  GITCODE_REPO    GitCode 仓库名，默认 aiverse
   GITHUB_TOKEN    GitHub 令牌（可选，提高 API 限额）
   RELEASE_FILTER  Python 正则，覆盖自动推导，仅同步匹配 tag_name 的 Release
   KEEP_STABLE     保留的正式版数量，默认 3
@@ -32,18 +28,17 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
 import urllib.parse
 import urllib.request
 
-UA = "AiVerse-gitcode-sync"
+UA = "aiverse-gitcode-sync"
 
 GH_REPO = os.environ.get("GH_REPO", "yhdmgf/AiVerse")
-GITCODE_OWNER = os.environ.get("GITCODE_OWNER") or GH_REPO.split("/")[0]
-GITCODE_REPO = os.environ.get("GITCODE_REPO") or GH_REPO.split("/")[1]
+GITCODE_OWNER = os.environ.get("GITCODE_OWNER", "qldwi")
+GITCODE_REPO = os.environ.get("GITCODE_REPO", "aiverse")
 GITCODE_TOKEN = os.environ.get("GITCODE_TOKEN", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 RELEASE_FILTER = os.environ.get("RELEASE_FILTER", "")
@@ -81,7 +76,7 @@ def http_json(url: str, payload: dict | None = None, method: str | None = None,
         )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read().decode()
-        if not body:  # 部分接口（如 DELETE）成功时返回空响应体
+        if not body:
             return None
         return json.loads(body)
 
@@ -146,7 +141,6 @@ def upload(release_tag: str, path: str) -> bool:
 
 
 def list_gitcode_releases() -> list:
-    """GitCode 列表接口；分页参数若被忽略则返回全量，按条数判断退出。"""
     out = []
     page = 1
     while True:
@@ -161,7 +155,6 @@ def list_gitcode_releases() -> list:
 
 
 def derive_keep_set(releases: list) -> set:
-    """自动推导保留集合：仅最新 KEEP_STABLE 个正式版（不含 RC）。"""
     parsed = [(parse_tag(r["tag_name"]), r["tag_name"]) for r in releases]
     stable = sorted((p for p, _ in parsed if p and not p[3]), reverse=True)
     keep_main = {s[:3] for s in stable[:KEEP_STABLE]}
@@ -174,14 +167,12 @@ def main() -> int:
         return 1
     print(f"源: GitHub {GH_REPO} -> 目标: GitCode {GITCODE_OWNER}/{GITCODE_REPO}")
 
-    # 验证 GitCode token 与仓库可达，避免把鉴权错误误判成其它问题
     try:
         gc_get("")
     except Exception as e:
         print(f"错误：无法访问 GitCode 仓库 {GITCODE_OWNER}/{GITCODE_REPO}：{e}")
         return 1
 
-    # 拉取 GitHub 全部 releases（分页）
     gh_releases = []
     page = 1
     while True:
@@ -193,7 +184,6 @@ def main() -> int:
             break
         page += 1
 
-    # 保留集合：RELEASE_FILTER 覆盖时用正则，否则自动推导；--all 全量
     if "--all" in sys.argv:
         keep = {r["tag_name"] for r in gh_releases}
         print("同步模式: 全部 Release")
@@ -205,22 +195,19 @@ def main() -> int:
         keep = derive_keep_set(gh_releases)
         print(f"保留策略: 仅最新 {KEEP_STABLE} 个正式版（不含 RC）")
     gh_releases = [r for r in gh_releases if r["tag_name"] in keep]
-    print(f"GitHub 上 {len(gh_releases)} 个 Release 需保留")
+    print(f"GitHub 上 {len(gh_releases)} 个 Release 需同步")
 
-    # 拉取 GitCode 已有 releases（幂等对比）
     gc_releases = {r["tag_name"]: r for r in list_gitcode_releases()}
     print(f"GitCode 已有 {len(gc_releases)} 个 Release")
 
     ok = skipped = failed = 0
     tmpdir = tempfile.mkdtemp(prefix="gitcode-sync-")
     try:
-        # 按创建时间升序处理，先旧后新
         for rel in sorted(gh_releases, key=lambda r: r["created_at"]):
             tag = rel["tag_name"]
             existing = gc_releases.get(tag)
             attach_names = set()
             if existing is not None:
-                # GitCode 列表接口直接带 assets（含平台自动生成的源码包，忽略）
                 attach_names = {
                     a.get("name") for a in existing.get("assets", [])
                     if a.get("name", "").endswith(".apk")

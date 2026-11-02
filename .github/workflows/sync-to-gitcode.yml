@@ -1,6 +1,7 @@
 name: Sync to GitCode
 
 # 每天北京时间 0:00 / 6:00 / 12:00 / 18:00 自动同步到 GitCode 镜像仓库
+# 代码 + Tag + Release 公告 + APK 附件（幂等，已存在的跳过）
 on:
   schedule:
     - cron: '0 4,10,16,22 * * *'  # UTC，对应北京时间 0/6/12/18
@@ -20,84 +21,31 @@ jobs:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
           GITHUB_SHA=$(git rev-parse HEAD)
-          echo ":: GitHub main HEAD: $GITHUB_SHA"
+          echo "GitHub main HEAD: $GITHUB_SHA"
 
+          # 用 Bearer header 认证（GitCode 标准方式）
           GITCODE_SHA=$(curl -sf --max-time 15 \
-            "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/commits?access_token=${GITCODE_TOKEN}&sha=main&per_page=1" \
+            -H "Authorization: Bearer ${GITCODE_TOKEN}" \
+            "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/commits?sha=main&per_page=1" \
             | jq -r '.[0].sha // ""' 2>/dev/null || echo "")
-          echo ":: GitCode main HEAD: ${GITCODE_SHA:-（空，首次推送）}"
+          echo "GitCode main HEAD: ${GITCODE_SHA:-（空，首次推送）}"
 
           if [ -n "$GITCODE_SHA" ] && [ "$GITHUB_SHA" = "$GITCODE_SHA" ]; then
-            echo ":: 哈希相同，跳过推送"
+            echo "哈希相同（$GITHUB_SHA），跳过推送"
           else
-            git remote add gitcode https://qldwi:${GITCODE_TOKEN}@gitcode.com/qldwi/aiverse.git
+            # oauth2 用户名是 GitCode 标准认证方式（令牌即密码）
+            git remote add gitcode https://oauth2:${GITCODE_TOKEN}@gitcode.com/qldwi/aiverse.git
             git push gitcode main --force --tags 2>&1
             git remote remove gitcode
-            echo ":: 推送完成"
+            echo "推送完成: $GITHUB_SHA → GitCode"
           fi
 
       - name: 同步 Release 公告与附件到 GitCode
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: yhdmgf/AiVerse
+          GITCODE_OWNER: qldwi
+          GITCODE_REPO: aiverse
         run: |
-          set -x  # 打开命令追踪，每条命令都会输出
-          set +e  # 关掉 errexit，避免 curl 失败就退出
-
-          echo "=== 1/4 获取 GitHub Releases ==="
-          GITHUB_RELEASES=$(curl -sf --max-time 30 \
-            -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/yhdmgf/AiVerse/releases?per_page=100")
-
-          if ! echo "$GITHUB_RELEASES" | jq -e 'type == "array"' > /dev/null 2>&1; then
-            echo "GitHub API 返回非数组，跳过"
-            echo "$GITHUB_RELEASES" | head -c 300
-            exit 0
-          fi
-
-          COUNT=$(echo "$GITHUB_RELEASES" | jq 'length')
-          echo ":: 共 ${COUNT} 个 Release"
-
-          echo "$GITHUB_RELEASES" | jq -c '.[]' | while IFS= read -r release; do
-            TAG=$(echo "$release" | jq -r '.tag_name')
-            NAME=$(echo "$release" | jq -r '.name // .tag_name')
-            BODY=$(echo "$release" | jq -r '.body // ""')
-            PRERELEASE=$(echo "$release" | jq -r '.prerelease')
-            ASSET_COUNT=$(echo "$release" | jq '.assets | length')
-
-            STATUS="latest"
-            [ "$PRERELEASE" = "true" ] && STATUS="pre"
-
-            echo ""
-            echo "=== 处理 Release: ${TAG}（${ASSET_COUNT} 个附件）==="
-
-            # 创建或更新 Release
-            PAYLOAD=$(jq -n \
-              --arg tag "$TAG" --arg name "$NAME" --arg body "$BODY" --arg status "$STATUS" \
-              '{tag_name: $tag, name: $name, body: $body, release_status: $status}')
-
-            echo ":: 检查 GitCode 是否已有 ${TAG}..."
-            HTTP=$(curl -s --max-time 15 -o /dev/null -w "%{http_code}" \
-              "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/tags/${TAG}?access_token=${GITCODE_TOKEN}")
-            echo ":: GitCode 检查结果: HTTP ${HTTP}"
-
-            if [ "$HTTP" = "200" ]; then
-              echo ":: 更新 Release（用 tag name 作为标识）..."
-              curl -s --max-time 15 -X PATCH \
-                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/${TAG}?access_token=${GITCODE_TOKEN}" \
-                -H "Content-Type: application/json" -d "$PAYLOAD" > /dev/null
-              echo ":: 更新完成"
-            else
-              echo ":: 创建 Release..."
-              curl -sf --max-time 15 -X POST \
-                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases?access_token=${GITCODE_TOKEN}" \
-                -H "Content-Type: application/json" -d "$PAYLOAD" > /dev/null
-              echo ":: 创建完成"
-            fi
-
-            echo ":: Release ${TAG} 完成（APK 附件不同步，GitCode 用户从 GitHub Release 下载）"
-          done
-
-          echo ""
-          echo "=== 全部同步完成 ==="
+          python3 scripts/sync-gitcode-releases.py --all
