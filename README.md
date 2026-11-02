@@ -106,7 +106,6 @@ AiVerse 是运行在 Android 上的通用 AI Coding Agent，把一套完整的 L
 
 ## 反馈与贡献
 
-- **交流群**：加入 [AiVerse QQ 交流群](https://qm.qq.com/q/ByvqODJdIs)（群号：1107110698），交流使用心得、反馈问题
 - **Bug 反馈**：到 [Issues](https://github.com/yhdmgf/AiVerse/issues) 提交，附上复现步骤、设备型号与系统版本，便于定位
 - **功能建议**：想加新功能或改进，欢迎先在 [Issues](https://github.com/yhdmgf/AiVerse/issues) 讨论
 - **贡献代码**：欢迎提交 [Pull Request](https://github.com/yhdmgf/AiVerse/pulls)
@@ -116,6 +115,7 @@ AiVerse 是运行在 Android 上的通用 AI Coding Agent，把一套完整的 L
 - [OpenCode](https://github.com/anomalyco/opencode) — 终端 AI 编码工具，本项目的核心灵感来源
 - [Termux](https://github.com/termux/termux-app) — Android 终端模拟器，提供了终端组件与 PRoot 方案
 - [Kelivo](https://github.com/Chevey339/kelivo) — 跨平台 LLM 聊天客户端，AI 对话界面设计参考
+- [AiCode](https://github.com/jieapi/AiCode/releases) — 本项目上游仓库，AiVerse 基于 AiCode 衍生，持续同步上游修复与特性，确保本地版本与远程一致
 
 ## 免责声明
 

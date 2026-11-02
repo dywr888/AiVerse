@@ -106,7 +106,6 @@ If AiVerse is helpful to you, give it a [Star](https://github.com/yhdmgf/AiVerse
 
 ## Feedback & Contribution
 
-- **QQ group**: join the [AiVerse QQ group](https://qm.qq.com/q/ByvqODJdIs) (group number: 1107110698) to share tips and feedback
 - **Bug reports**: open an [Issue](https://github.com/yhdmgf/AiVerse/issues) with reproduction steps, device model and OS version
 - **Feature requests**: discuss your ideas in [Issues](https://github.com/yhdmgf/AiVerse/issues)
 - **Contributing**: submit a [Pull Request](https://github.com/yhdmgf/AiVerse/pulls)
@@ -116,6 +115,7 @@ If AiVerse is helpful to you, give it a [Star](https://github.com/yhdmgf/AiVerse
 - [OpenCode](https://github.com/anomalyco/opencode) — Terminal-based AI coding tool, the core inspiration for this project
 - [Termux](https://github.com/termux/termux-app) — Android terminal emulator, provided terminal components and PRoot solution
 - [Kelivo](https://github.com/Chevey339/kelivo) — Cross-platform LLM chat client, AI conversation UI design reference
+- [AiCode](https://github.com/jieapi/AiCode/releases) — Upstream repository; AiVerse is forked from AiCode, continuously syncing upstream fixes and features to keep the local version consistent with the remote
 
 ## Disclaimer
 
