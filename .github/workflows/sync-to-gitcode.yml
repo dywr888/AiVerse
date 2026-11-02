@@ -42,6 +42,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x  # 打开命令追踪，每条命令都会输出
+          set +e  # 关掉 errexit，避免 curl 失败就退出
 
           echo "=== 1/4 获取 GitHub Releases ==="
           GITHUB_RELEASES=$(curl -sf --max-time 30 \
@@ -82,12 +83,9 @@ jobs:
             echo ":: GitCode 检查结果: HTTP ${HTTP}"
 
             if [ "$HTTP" = "200" ]; then
-              RID=$(curl -sf --max-time 15 \
-                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/tags/${TAG}?access_token=${GITCODE_TOKEN}" \
-                | jq -r '.id')
-              echo ":: 更新 Release (id=${RID})..."
-              curl -sf --max-time 15 -X PATCH \
-                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/${RID}?access_token=${GITCODE_TOKEN}" \
+              echo ":: 更新 Release（用 tag name 作为标识）..."
+              curl -s --max-time 15 -X PATCH \
+                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/${TAG}?access_token=${GITCODE_TOKEN}" \
                 -H "Content-Type: application/json" -d "$PAYLOAD" > /dev/null
               echo ":: 更新完成"
             else
@@ -114,9 +112,14 @@ jobs:
 
               # 下载
               echo ":: 下载中..."
-              curl -sfL --max-time 120 -# \
+              curl -sL --max-time 120 -# \
                 -H "Authorization: token ${GH_TOKEN}" \
-                -o "/tmp/${ASSET_NAME}" "${ASSET_URL}"
+                -o "/tmp/${ASSET_NAME}" "${ASSET_URL}" 2>&1 || true
+              if [ ! -s "/tmp/${ASSET_NAME}" ]; then
+                echo "!! 下载失败: ${ASSET_NAME}"
+                rm -f "/tmp/${ASSET_NAME}"
+                continue
+              fi
               DL_SIZE=$(stat -c%s "/tmp/${ASSET_NAME}" 2>/dev/null || echo 0)
               echo ":: 下载完成: $((DL_SIZE / 1024 / 1024))MB"
 
