@@ -294,10 +294,7 @@ class AIEditorApp : Application(), Configuration.Provider {
         appScope.launch {
             modelMetadataService.refreshFromNetworkIfStale()
         }
-        // 启动即异步刷新仓库 providers.json 预设（12h 缓存；失败静默，兜底本地磁盘与内置 assets）。
-        appScope.launch {
-            com.aiverse.feature.settings.data.local.ProviderPresetLibrary.refreshFromNetworkIfStale(this@AIEditorApp)
-        }
+        // providers.json 预设改为纯本地 assets 读取，不再远程拉取
         // 启动即异步刷新可下载镜像目录（12h 缓存；失败静默，兜底本地磁盘与内置 assets）。
         // 目的是让「上游发了安全补丁」不必等 App 发版就能在下载列表里看到。
         appScope.launch {

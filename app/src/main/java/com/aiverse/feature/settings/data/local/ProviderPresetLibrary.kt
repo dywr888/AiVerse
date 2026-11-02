@@ -84,24 +84,7 @@ object ProviderPresetLibrary {
      */
     fun loadOfficial(context: Context): List<ProviderPreset> {
         cached?.let { return it }
-
-        // 1. 尝试直接读取本地磁盘缓存文件（由 RepoDataFetcher 写入）
-        val diskContent = RepoDataFetcher(context).readLocalCache(REMOTE_PROVIDERS_PATH)
-        if (!diskContent.isNullOrBlank()) {
-            val parsed = runCatching {
-                json.decodeFromString<List<ProviderPreset>>(diskContent)
-            }.getOrNull()
-            if (!parsed.isNullOrEmpty()) {
-                val sorted = parsed.sortedWith(
-                    compareByDescending<ProviderPreset> { it.isRecommended }
-                        .thenBy { it.name.lowercase() }
-                )
-                cached = sorted
-                return sorted
-            }
-        }
-
-        // 2. 兜底读取内置 assets（必定存在，必定瞬间返回）
+        // 纯本地：直接读内置 assets/providers.json，不发任何网络请求
         val fallback = loadFromAssets(context)
         cached = fallback
         return fallback

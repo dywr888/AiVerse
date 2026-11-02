@@ -133,7 +133,7 @@ import com.aiverse.feature.terminal.data.repository.TerminalSettings
 import com.aiverse.feature.terminal.presentation.component.TerminalSettingsSheet
 
 /** 使用手册在线文档站地址。 */
-private const val USER_GUIDE_DOCS_URL = "https://AiVerse.murk.top"
+private const val USER_GUIDE_DOCS_URL = "https://aiverse.qlyyz.xyz"
 
 /** 大屏设置页左侧常驻菜单宽度。 */
 private val SettingsMenuWidth = 320.dp

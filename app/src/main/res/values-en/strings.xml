@@ -584,8 +584,8 @@
     <string name="agreement_notice_suffix">" to understand the usage rules and data handling practices.\n\nBy tapping “Agree and continue”, you confirm that you have read and agree to both documents."</string>
     <string name="agreement_accept">Agree and continue</string>
     <string name="agreement_decline">Disagree</string>
-    <string name="agreement_terms_url">https://AiVerse.murk.top/en/terms</string>
-    <string name="agreement_privacy_url">https://AiVerse.murk.top/en/privacy</string>
+    <string name="agreement_terms_url">https://aiverse.qlyyz.xyz/en/terms</string>
+    <string name="agreement_privacy_url">https://aiverse.qlyyz.xyz/en/privacy</string>
 
     <!-- Ask User Question -->
     <string name="ask_confirm_title">AI needs your confirmation</string>
