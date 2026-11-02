@@ -16,20 +16,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 强制推送代码与 Tag 到 GitCode
+      - name: 检查哈希并推送代码与 Tag
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
-          git remote add gitcode https://qldwi:${GITCODE_TOKEN}@gitcode.com/qldwi/aiverse.git
-          git push gitcode main --force --tags
-          git remote remove gitcode
+          GITHUB_SHA=$(git rev-parse HEAD)
+          echo "GitHub main HEAD: $GITHUB_SHA"
+
+          # 获取 GitCode main 分支的 HEAD commit SHA
+          GITCODE_SHA=$(curl -sf \
+            "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/commits?access_token=${GITCODE_TOKEN}&sha=main&per_page=1" \
+            | jq -r '.[0].sha // ""' 2>/dev/null || echo "")
+          echo "GitCode main HEAD: ${GITCODE_SHA:-（空，首次推送）}"
+
+          if [ -n "$GITCODE_SHA" ] && [ "$GITHUB_SHA" = "$GITCODE_SHA" ]; then
+            echo "哈希相同（$GITHUB_SHA），跳过推送"
+          else
+            git remote add gitcode https://qldwi:${GITCODE_TOKEN}@gitcode.com/qldwi/aiverse.git
+            git push gitcode main --force --tags
+            git remote remove gitcode
+            echo "推送完成: $GITHUB_SHA → GitCode"
+          fi
 
       - name: 同步 Release 公告到 GitCode
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 从 GitHub 获取所有 Release（tag + 标题 + 正文 + 是否预发布）
-          GITHUB_RELEASES=$(curl -s "https://api.github.com/repos/yhdmgf/AiVerse/releases?per_page=100")
+          # 用 GITHUB_TOKEN 认证避免 API 限速
+          GITHUB_RELEASES=$(curl -sf -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/repos/yhdmgf/AiVerse/releases?per_page=100")
+
+          # 检查返回是否为 JSON 数组（限速或错误时返回对象）
+          if ! echo "$GITHUB_RELEASES" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            echo "GitHub API 返回非数组，跳过 Release 同步"
+            echo "$GITHUB_RELEASES" | head -c 200
+            exit 0
+          fi
+
+          RELEASE_COUNT=$(echo "$GITHUB_RELEASES" | jq 'length')
+          echo "GitHub 共 ${RELEASE_COUNT} 个 Release，开始同步..."
 
           echo "$GITHUB_RELEASES" | jq -c '.[]' | while read -r release; do
             TAG=$(echo "$release" | jq -r '.tag_name')
@@ -66,3 +92,5 @@ jobs:
               echo "创建 Release: $TAG"
             fi
           done
+
+          echo "Release 同步完成"
