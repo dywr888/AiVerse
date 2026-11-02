@@ -43,7 +43,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 << 'PYEOF'
-          import json, os, urllib.request, urllib.parse, tempfile
+          import json, os, urllib.request, urllib.parse, tempfile, socket
+          socket.setdefaulttimeout(300)  # 5 分钟超时，避免网络请求卡死
 
           GITCODE_TOKEN = os.environ['GITCODE_TOKEN']
           GH_TOKEN = os.environ['GH_TOKEN']
