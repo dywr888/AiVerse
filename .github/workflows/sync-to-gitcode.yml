@@ -72,7 +72,7 @@ jobs:
             echo ""
             echo "=== 处理 Release: ${TAG}（${ASSET_COUNT} 个附件）==="
 
-            # 2/4 创建或更新 Release
+            # 创建或更新 Release
             PAYLOAD=$(jq -n \
               --arg tag "$TAG" --arg name "$NAME" --arg body "$BODY" --arg status "$STATUS" \
               '{tag_name: $tag, name: $name, body: $body, release_status: $status}')
@@ -96,70 +96,8 @@ jobs:
               echo ":: 创建完成"
             fi
 
-            # 3/4 同步附件（APK）
-            if [ "$ASSET_COUNT" -eq 0 ]; then
-              echo ":: 无附件，跳过"
-              continue
-            fi
-
-            echo "$release" | jq -c '.assets[]' | while IFS= read -r asset; do
-              ASSET_URL=$(echo "$asset" | jq -r '.browser_download_url')
-              ASSET_NAME=$(echo "$asset" | jq -r '.name')
-              ASSET_SIZE=$(echo "$asset" | jq -r '.size')
-
-              echo ""
-              echo ":: 附件: ${ASSET_NAME}（$((ASSET_SIZE / 1024 / 1024))MB）"
-
-              # 下载
-              echo ":: 下载中..."
-              curl -sL --max-time 120 -# \
-                -H "Authorization: token ${GH_TOKEN}" \
-                -o "/tmp/${ASSET_NAME}" "${ASSET_URL}" 2>&1 || true
-              if [ ! -s "/tmp/${ASSET_NAME}" ]; then
-                echo "!! 下载失败: ${ASSET_NAME}"
-                rm -f "/tmp/${ASSET_NAME}"
-                continue
-              fi
-              DL_SIZE=$(stat -c%s "/tmp/${ASSET_NAME}" 2>/dev/null || echo 0)
-              echo ":: 下载完成: $((DL_SIZE / 1024 / 1024))MB"
-
-              # 获取上传 URL
-              echo ":: 获取 GitCode 上传 URL..."
-              UPLOAD_RESP=$(curl -sf --max-time 15 \
-                "https://api.gitcode.com/api/v5/repos/qldwi/aiverse/releases/${TAG}/upload_url?access_token=${GITCODE_TOKEN}&file_name=${ASSET_NAME}")
-
-              UPLOAD_URL=$(echo "$UPLOAD_RESP" | jq -r '.url // empty')
-              if [ -z "$UPLOAD_URL" ]; then
-                echo "!! 获取 upload_url 失败"
-                echo "响应: $(echo "$UPLOAD_RESP" | head -c 300)"
-                rm -f "/tmp/${ASSET_NAME}"
-                continue
-              fi
-              echo ":: upload_url 获取成功"
-
-              # 构造 headers
-              HEADER_ARGS=()
-              while IFS=$'\t' read -r key val; do
-                HEADER_ARGS+=("-H" "${key}: ${val}")
-              done < <(echo "$UPLOAD_RESP" | jq -r '.headers | to_entries[] | "\(.key)\t\(.value)"')
-
-              # 上传
-              echo ":: 上传到 OBS..."
-              UPLOAD_HTTP=$(curl -s --max-time 300 -X PUT \
-                "${UPLOAD_URL}" "${HEADER_ARGS[@]}" \
-                --upload-file "/tmp/${ASSET_NAME}" \
-                -w "%{http_code}" -o /tmp/upload_resp.txt)
-
-              echo ":: 上传结果: HTTP ${UPLOAD_HTTP}"
-              if [ "$UPLOAD_HTTP" != "200" ] && [ "$UPLOAD_HTTP" != "204" ]; then
-                echo "!! 上传失败，响应: $(cat /tmp/upload_resp.txt | head -c 300)"
-              fi
-
-              rm -f "/tmp/${ASSET_NAME}" /tmp/upload_resp.txt
-            done
-
-            echo ":: Release ${TAG} 完成"
+            echo ":: Release ${TAG} 完成（APK 附件不同步，GitCode 用户从 GitHub Release 下载）"
           done
 
           echo ""
-          echo "=== 4/4 全部同步完成 ==="
+          echo "=== 全部同步完成 ==="
