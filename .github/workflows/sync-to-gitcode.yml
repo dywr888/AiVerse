@@ -1,0 +1,25 @@
+name: Sync to GitCode
+
+# 每天北京时间 0:00 / 6:00 / 12:00 / 18:00 自动同步到 GitCode 镜像仓库
+# 也支持手动触发
+on:
+  schedule:
+    - cron: '0 4,10,16,22 * * *'  # UTC 时间，对应北京时间 0/6/12/18
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync to GitCode
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          git remote add gitcode https://qldwi:${GITCODE_TOKEN}@gitcode.com/qldwi/aiverse.git
+          git push gitcode main --force --tags
+          git remote remove gitcode
