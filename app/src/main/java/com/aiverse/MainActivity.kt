@@ -58,7 +58,21 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import com.aiverse.core.security.SignatureGuard
+import kotlin.system.exitProcess
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -254,27 +268,19 @@ class MainActivity : ComponentActivity() {
         val isContainerReady: () -> Boolean = { isContainerProvisioned() }
         setContent {
             // 启动签名校验：构建期从 keystore 注入的随机分片（BuildConfig）合并出期望指纹，
-            // 与当前 APK 签名证书比对，不一致说明包被替换/篡改，弹窗提示去正规平台下载。
+            // 与当前 APK 签名证书比对，不一致说明包被替换/篡改，全屏阻断并提示去正规平台下载。
             val signatureInvalid = remember { !SignatureGuard.verify(this@MainActivity) }
             if (signatureInvalid) {
-                AlertDialog(
-                    onDismissRequest = {},
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val ctx = this@MainActivity
-                            ctx.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.sig_invalid_repo_url)))
-                            )
-                        }) { Text(stringResource(R.string.sig_invalid_button)) }
+                SignatureMismatchScreen(
+                    onOpenRepo = {
+                        val ctx = this@MainActivity
+                        ctx.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.sig_invalid_repo_url)))
+                        )
                     },
-                    title = { Text(stringResource(R.string.sig_invalid_title)) },
-                    text = {
-                        Column {
-                            Text(stringResource(R.string.sig_invalid_message))
-                            Text(stringResource(R.string.sig_invalid_repo_url))
-                        }
-                    }
+                    onExit = { finishAffinity(); exitProcess(0) }
                 )
+                return@setContent
             }
             val themeMode by themeSettings.themeModeFlow.collectAsStateWithLifecycle(initialValue = AppThemeMode.AUTO)
             val themePresetId by themeSettings.themePresetIdFlow.collectAsStateWithLifecycle(initialValue = null)
@@ -1207,4 +1213,62 @@ internal fun splitPathAndLine(path: String): Pair<String, Int> {
     val cleaned = path.substringBefore('#').trim()
     val m = TRAILING_LINE.find(cleaned) ?: return cleaned to 0
     return m.groupValues[1] to (m.groupValues[2].toIntOrNull() ?: 0)
+}
+
+/**
+ * 签名校验失败全屏页：霸屏覆盖整个 Activity，红色警告底色，居中展示标题/消息/仓库链接，
+ * 下方「前往官网」按钮打开浏览器跳转仓库，「退出应用」按钮关闭进程。
+ */
+@Composable
+private fun SignatureMismatchScreen(onOpenRepo: () -> Unit, onExit: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.sig_invalid_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.sig_invalid_message),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.sig_invalid_repo_url),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(32.dp))
+            Button(
+                onClick = onOpenRepo,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.sig_invalid_button))
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.sig_invalid_exit))
+            }
+        }
+    }
 }

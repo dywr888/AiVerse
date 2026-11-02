@@ -2032,4 +2032,5 @@
     <string name="sig_invalid_message">Signature mismatch. Please download from the official source.</string>
     <string name="sig_invalid_button">Go to official site</string>
     <string name="sig_invalid_repo_url">https://github.com/yhdmgf/AiVerse</string>
+    <string name="sig_invalid_exit">Exit App</string>
 </resources>
