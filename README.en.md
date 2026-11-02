@@ -115,7 +115,7 @@ If AiVerse is helpful to you, give it a [Star](https://github.com/yhdmgf/AiVerse
 - [OpenCode](https://github.com/anomalyco/opencode) — Terminal-based AI coding tool, the core inspiration for this project
 - [Termux](https://github.com/termux/termux-app) — Android terminal emulator, provided terminal components and PRoot solution
 - [Kelivo](https://github.com/Chevey339/kelivo) — Cross-platform LLM chat client, AI conversation UI design reference
-- [AiCode](https://github.com/jieapi/AiCode/releases) — Upstream repository; AiVerse is forked from AiCode, continuously syncing upstream fixes and features to keep the local version consistent with the remote
+- [AiCode](https://github.com/jieapi/AiCode) — Upstream repository; AiVerse is forked from AiCode, continuously syncing upstream fixes and features to keep the local version consistent with the remote
 
 ## Disclaimer
 
