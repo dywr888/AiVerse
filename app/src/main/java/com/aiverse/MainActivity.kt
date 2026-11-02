@@ -278,6 +278,12 @@ class MainActivity : ComponentActivity() {
                             Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.sig_invalid_repo_url)))
                         )
                     },
+                    onOpenGithub = {
+                        val ctx = this@MainActivity
+                        ctx.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(ctx.getString(R.string.sig_invalid_github_url)))
+                        )
+                    },
                     onExit = { finishAffinity(); exitProcess(0) }
                 )
                 return@setContent
@@ -1220,7 +1226,11 @@ internal fun splitPathAndLine(path: String): Pair<String, Int> {
  * 下方「前往官网」按钮打开浏览器跳转仓库，「退出应用」按钮关闭进程。
  */
 @Composable
-private fun SignatureMismatchScreen(onOpenRepo: () -> Unit, onExit: () -> Unit) {
+private fun SignatureMismatchScreen(
+    onOpenRepo: () -> Unit,
+    onOpenGithub: () -> Unit,
+    onExit: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1261,6 +1271,13 @@ private fun SignatureMismatchScreen(onOpenRepo: () -> Unit, onExit: () -> Unit) 
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.sig_invalid_button))
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onOpenGithub,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.sig_invalid_github_button))
             }
             Spacer(Modifier.height(12.dp))
             OutlinedButton(

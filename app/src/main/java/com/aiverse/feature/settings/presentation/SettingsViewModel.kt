@@ -1850,7 +1850,6 @@ class SettingsViewModel @Inject constructor(
         }
         if (!manual) {
             if (!updateCheckSettingsRepository.autoCheckEnabled) return
-            if (updateCheckSettingsRepository.hasCheckedToday()) return
         }
         viewModelScope.launch {
             // 手动检查显示「检测中」反馈；自动检查全程无感，仅检测到新版本才弹窗

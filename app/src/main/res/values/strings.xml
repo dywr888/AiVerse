@@ -978,50 +978,15 @@
     <!-- Credential List -->
     <string name="credential_empty_hint">尚未添加凭据，点右上角 + 添加</string>
     <string name="credential_empty_title">暂无 Git 凭据</string>
-    <string name="credential_empty_desc">点击右上角 + 添加：GitHub 快捷登录或手动配置访问令牌。配置后推送、拉取代码时会自动完成身份认证</string>
+    <string name="credential_empty_desc">点击右上角 + 手动配置访问令牌。配置后推送、拉取代码时会自动完成身份认证</string>
 
-    <!-- Credential Add / Quick Login -->
+    <!-- Credential Add -->
     <string name="credential_add_sheet_title">添加凭据</string>
-    <string name="credential_add_sheet_subtitle">选择快捷授权登录或手动配置访问凭据</string>
     <string name="credential_add_manual">手动添加</string>
     <string name="credential_add_manual_desc">填写远程主机、用户名与访问令牌</string>
-    <string name="credential_add_github_title">GitHub 快捷登录</string>
-    <string name="credential_add_github_desc">通过 GitHub 账号一键授权，无需手动创建 Token</string>
     <string name="credential_add_manual_title">手动配置凭据</string>
     <string name="credential_add_manual_subtitle">适用于 GitLab、Gitee、自建服务器或个人访问令牌</string>
     <string name="credential_add_recommend">推荐</string>
-    <string name="credential_quick_login">快速登录</string>
-    <string name="credential_quick_login_desc">通过 GitHub 设备码授权登录</string>
-    <string name="credential_quick_login_title">快速登录</string>
-    <string name="credential_quick_login_github_desc">使用 GitHub 账号授权登录</string>
-    <string name="credential_device_title">GitHub 授权登录</string>
-    <string name="credential_device_subtitle">通过 GitHub 官方设备流安全授权访问权限</string>
-    <string name="credential_device_requesting">正在请求设备码…</string>
-    <string name="credential_device_instruction">在浏览器打开下方地址，输入设备码完成授权</string>
-    <string name="credential_device_card_label">设备授权码</string>
-    <string name="credential_device_tap_to_copy">点击复制</string>
-    <string name="credential_device_code_copied">已复制设备码</string>
-    <string name="credential_device_code_copied_opening">已复制设备码，正在打开浏览器…</string>
-    <string name="credential_device_authorize_and_open">复制并前往授权</string>
-    <string name="credential_device_copy_code">仅复制设备码</string>
-    <string name="credential_device_open_browser">打开浏览器</string>
-    <string name="credential_device_step_1">1. 复制上方 8 位设备验证码</string>
-    <string name="credential_device_step_2">2. 前往 GitHub 验证页面粘贴并确认授权</string>
-    <string name="credential_device_waiting">等待浏览器授权完成…</string>
-    <string name="credential_device_waiting_desc">完成授权后将自动绑定并保存凭据</string>
-    <string name="credential_device_success_title">授权成功</string>
-    <string name="credential_device_success">已成功关联账号 %1$s 并保存凭据</string>
-    <string name="credential_device_install_required">已登录为 %1$s。还需把 AiVerse 安装到你的仓库，之后才能推送/拉取代码。</string>
-    <string name="credential_device_install_now">去安装</string>
-    <string name="credential_device_install_later">稍后</string>
-    <string name="credential_device_failed_title">授权未能完成</string>
-    <string name="credential_device_failed">登录失败：%1$s</string>
-    <string name="credential_device_expired">设备码已过期，请重试</string>
-    <string name="credential_device_denied">授权已被拒绝</string>
-    <string name="credential_device_flow_disabled">该应用未启用设备码流，请在 GitHub App 设置中开启</string>
-    <string name="credential_device_bad_client">客户端 ID 无效，请检查应用配置</string>
-    <string name="credential_device_unknown_error">未知错误</string>
-    <string name="credential_device_need_install">需先授权仓库：请把 App 安装到你的仓库并授予读取权限，再重新登录</string>
 
     <!-- Credential Prompt -->
     <string name="credential_prompt_title">需要 %1$s 的登录凭据</string>
@@ -2037,6 +2002,8 @@
     <string name="sig_invalid_title">签名校验失败</string>
     <string name="sig_invalid_message">签名不对，请在正规平台下载</string>
     <string name="sig_invalid_button">前往官网</string>
-    <string name="sig_invalid_repo_url">https://github.com/yhdmgf/AiVerse</string>
+    <string name="sig_invalid_repo_url">https://aiverse.qlyyz.xyz</string>
+    <string name="sig_invalid_github_url">https://github.com/yhdmgf/AiVerse</string>
+    <string name="sig_invalid_github_button">GitHub 仓库</string>
     <string name="sig_invalid_exit">退出应用</string>
 </resources>
