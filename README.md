@@ -48,13 +48,6 @@ AiVerse 是运行在 Android 上的通用 AI Coding Agent，把一套完整的 L
 | 图标 | 描述 |
 |------|------|
 | <img src="https://www.rainyun.com/favicon.ico" width="24" alt="RainYun" /> | **[雨云](https://www.rainyun.com/logins_)** — 本项目服务器赞助商，国产云服务商，主营云服务器与游戏云（Minecraft 等预装服务端一键开服），兼有裸金属物理机与对象存储，新用户优惠 |
-| <img src="https://ai.onyxaxis.org/api/site/logo" width="24" alt="Axis AI" /> | **[Axis AI](https://ai.onyxaxis.org/register?invite=FOAiVerse)** — 汇聚前沿大模型能力的免费公益 AI 平台，使用邀请码 `FOAiVerse` 注册可享 7 天 Go 权益 |
-
-## 广告
-
-| 图标 | 描述 |
-|------|------|
-| <img src="https://www.qiniu.com/favicon.ico" width="24" alt="Qiniu" /> | **[七牛云 AI](https://s.qiniu.com/vUryau)** — 新用户注册赠 300 万 Token（2 年有效），支持 50+ 热门大模型 |
 
 ## 功能特性
 
@@ -79,6 +72,7 @@ AiVerse 是运行在 Android 上的通用 AI Coding Agent，把一套完整的 L
 
 - **内置终端与容器** — 基于 Termux 与 PRoot 的本地 Linux 容器，内置 Alpine 镜像，支持导入自定义 rootfs、挂载宿主目录；终端多标签、可后台常驻
 - **远程 SSH 模式** — 把远程服务器作为执行后端，命令、文件与终端都作用于远端项目
+- **远程 SSH 工具** — AI 内置 sshExec、sshRead、sshList、sshTail、sshDownload、sshUpload、sshRm、sshMv 等工具，可直接在远程服务器上执行命令、读写文件、查看日志与传输文件；支持 sudo 提权与高频命令自动映射
 - **Shizuku 执行后端** — 借助 Shizuku，AI 可在宿主 Android 系统上执行 shell 与 adb 命令，用于调试或操作其他设备（需逐次授权确认）
 - **文件树与代码编辑器** — 缩进式文件树点开即进全屏编辑器，支持主流语言语法高亮与 Markdown 预览；AI 回复里的 `文件:行号` 链接可直接跳转到对应行，本地与远程 SSH 工作区都支持
 - **Git 集成** — 可视化管理状态、分支、提交历史、差异与标签，支持暂存与回退改动、署名与凭据配置

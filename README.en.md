@@ -48,13 +48,6 @@ There is nothing to set up beforehand: install the app, configure a model under 
 | Icon | Description |
 |------|-------------|
 | <img src="https://www.rainyun.com/favicon.ico" width="24" alt="RainYun" /> | **[RainYun](https://www.rainyun.com/logins_)** — Sponsor of this project's server; a Chinese cloud provider specializing in VPS and game hosting (one-click Minecraft and other game servers), plus bare-metal machines and object storage; discounts for new users |
-| <img src="https://ai.onyxaxis.org/api/site/logo" width="24" alt="Axis AI" /> | **[Axis AI](https://ai.onyxaxis.org/register?invite=FOAiVerse)** — A free non-profit AI platform offering frontier models; register with invite code `FOAiVerse` for 7 days of Go benefits |
-
-## Advertisement
-
-| Icon | Description |
-|------|-------------|
-| <img src="https://www.qiniu.com/favicon.ico" width="24" alt="Qiniu" /> | **[Qiniu Cloud AI](https://s.qiniu.com/vUryau)** — New users get 3,000,000 free tokens on sign-up (valid for 2 years), covering 50+ popular models |
 
 ## Features
 
@@ -79,6 +72,7 @@ There is nothing to set up beforehand: install the app, configure a model under 
 
 - **Built-in Terminal & Container** — A local Linux container built on Termux and PRoot with a built-in Alpine image; supports custom rootfs images and host directory mounts; multi-tab terminals that can stay alive in the background
 - **Remote SSH Mode** — Use a remote SSH server as the execution backend: commands, files and terminal all act on the remote project
+- **Remote SSH Tools** — Built-in sshExec, sshRead, sshList, sshTail, sshDownload, sshUpload, sshRm, sshMv tools let the AI directly execute commands, read/write files, tail logs and transfer files on the remote server; supports sudo elevation and automatic high-frequency command mapping
 - **Shizuku backend** — With Shizuku, the AI can run shell and adb commands on the host Android system to debug or operate other devices (requires per-call approval)
 - **File tree & code editor** — An indented file tree that opens files in a full-screen editor with syntax highlighting for mainstream languages and Markdown preview; `file:line` links in AI replies jump straight to that line, in both local and remote SSH workspaces
 - **Git Integration** — Visual management of status, branches, commit history, diffs and tags, plus staging/discarding changes, sign-off and credentials
