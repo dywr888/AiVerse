@@ -150,7 +150,7 @@ sealed interface ExtensionMarketState {
 sealed interface ExtensionDownloadState {
     data object Idle : ExtensionDownloadState
     data class Downloading(val name: String, val progress: Float) : ExtensionDownloadState
-    data class NeedPermission(val name: String) : ExtensionDownloadState
+    data class NeedPermission(val name: String, val apkPath: String) : ExtensionDownloadState
     data class Failed(val name: String, val message: String) : ExtensionDownloadState
 }
 
@@ -2917,7 +2917,7 @@ class SettingsViewModel @Inject constructor(
                         ApkInstaller.Result.STARTED ->
                             _extensionDownloadState.value = ExtensionDownloadState.Idle
                         ApkInstaller.Result.NEED_PERMISSION ->
-                            _extensionDownloadState.value = ExtensionDownloadState.NeedPermission(item.name)
+                            _extensionDownloadState.value = ExtensionDownloadState.NeedPermission(item.name, apk.absolutePath)
                         ApkInstaller.Result.NO_HANDLER ->
                             _extensionDownloadState.value = ExtensionDownloadState.Failed(
                                 item.name, context.getString(R.string.common_error)
@@ -2935,6 +2935,26 @@ class SettingsViewModel @Inject constructor(
     /** 打开「允许安装未知应用」设置页。 */
     fun openExtensionInstallPermissionSettings() {
         ApkInstaller.openInstallPermissionSettings(context)
+    }
+
+    /** 从授权设置页返回后：已授权则直接安装之前下载好的 APK（不重新下载）。 */
+    fun onExtensionPermissionReturn() {
+        val state = _extensionDownloadState.value
+        if (state is ExtensionDownloadState.NeedPermission && ApkInstaller.canInstall(context)) {
+            val apk = File(state.apkPath)
+            _extensionDownloadState.value = ExtensionDownloadState.Idle
+            if (apk.isFile) {
+                when (ApkInstaller.install(context, apk)) {
+                    ApkInstaller.Result.STARTED -> Unit
+                    ApkInstaller.Result.NEED_PERMISSION ->
+                        _extensionDownloadState.value = ExtensionDownloadState.NeedPermission(state.name, state.apkPath)
+                    ApkInstaller.Result.NO_HANDLER ->
+                        _extensionDownloadState.value = ExtensionDownloadState.Failed(
+                            state.name, context.getString(R.string.common_error)
+                        )
+                }
+            }
+        }
     }
 
     /** 清空下载状态（关闭提示后）。 */

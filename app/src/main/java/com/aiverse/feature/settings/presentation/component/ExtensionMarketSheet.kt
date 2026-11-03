@@ -49,6 +49,7 @@ fun ExtensionMarketSheet(
     downloadState: ExtensionDownloadState,
     onRefresh: () -> Unit,
     onInstall: (ExtensionItem) -> Unit,
+    onOpenPermission: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AdaptiveModalBottomSheet(
@@ -145,7 +146,8 @@ fun ExtensionMarketSheet(
                                     ExtensionMarketRow(
                                         item = item,
                                         downloadState = downloadState,
-                                        onInstall = { onInstall(item) }
+                                        onInstall = { onInstall(item) },
+                                        onOpenPermission = onOpenPermission
                                     )
                                 }
                             }
@@ -174,7 +176,8 @@ fun ExtensionMarketSheet(
 private fun ExtensionMarketRow(
     item: ExtensionItem,
     downloadState: ExtensionDownloadState,
-    onInstall: () -> Unit
+    onInstall: () -> Unit,
+    onOpenPermission: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -227,7 +230,7 @@ private fun ExtensionMarketRow(
                 }
             is ExtensionDownloadState.NeedPermission ->
                 if (downloadState.name == item.name) {
-                    TextButton(onClick = onInstall) {
+                    TextButton(onClick = onOpenPermission) {
                         Text(
                             text = stringResource(R.string.extension_market_install_permission),
                             style = MaterialTheme.typography.labelMedium,

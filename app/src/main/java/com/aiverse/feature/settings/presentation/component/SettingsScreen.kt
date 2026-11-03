@@ -64,6 +64,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aiverse.core.theme.AppThemePreset
 import com.aiverse.core.theme.Spacing
@@ -315,6 +319,16 @@ fun SettingsScreen(
     var showMcpAddSheet by remember { mutableStateOf(false) }
     var showMcpJsonImport by remember { mutableStateOf(false) }
     var showExtensionMarket by remember { mutableStateOf(false) }
+
+    // 从「允许安装未知应用」设置页返回后：已授权则直接安装已下载的扩展 APK
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onExtensionPermissionReturn()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var mcpAddScope by remember { mutableStateOf(McpScope.PROJECT) }
 
     LaunchedEffect(onboardingStep) {
@@ -1274,6 +1288,7 @@ fun SettingsScreen(
             downloadState = extensionDownloadState,
             onRefresh = { viewModel.fetchExtensions() },
             onInstall = { item -> viewModel.installExtension(item) },
+            onOpenPermission = { viewModel.openExtensionInstallPermissionSettings() },
             onDismiss = {
                 showExtensionMarket = false
                 viewModel.clearExtensionDownloadState()
