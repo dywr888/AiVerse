@@ -97,6 +97,7 @@ import com.aiverse.feature.agent.domain.skill.SkillImportError
 import com.aiverse.feature.agent.domain.skill.SkillScope
 import com.aiverse.feature.settings.presentation.SubAgentUiEntry
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.DownloadCloud
 import compose.icons.feathericons.ArrowLeft
 import compose.icons.feathericons.BarChart2
 import compose.icons.feathericons.Book
@@ -216,6 +217,8 @@ fun SettingsScreen(
     val mcpAuthState by viewModel.mcpAuthState.collectAsStateWithLifecycle()
     val mcpImportState by viewModel.mcpImportState.collectAsStateWithLifecycle()
     val mcpEntries by viewModel.mcpEntries.collectAsStateWithLifecycle()
+    val extensionMarketState by viewModel.extensionMarketState.collectAsStateWithLifecycle()
+    val extensionDownloadState by viewModel.extensionDownloadState.collectAsStateWithLifecycle()
     val mcpStatuses by viewModel.mcpStatuses.collectAsStateWithLifecycle()
     val mcpReloading by viewModel.mcpReloading.collectAsStateWithLifecycle()
     val skills by viewModel.skills.collectAsStateWithLifecycle()
@@ -311,6 +314,7 @@ fun SettingsScreen(
     var editingMcp by remember { mutableStateOf<McpServerEntry?>(null) }
     var showMcpAddSheet by remember { mutableStateOf(false) }
     var showMcpJsonImport by remember { mutableStateOf(false) }
+    var showExtensionMarket by remember { mutableStateOf(false) }
     var mcpAddScope by remember { mutableStateOf(McpScope.PROJECT) }
 
     LaunchedEffect(onboardingStep) {
@@ -728,6 +732,17 @@ fun SettingsScreen(
                                 Icon(
                                     FeatherIcons.Plus,
                                     contentDescription = stringResource(R.string.settings_add_mcp_server),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            IconButton(onClick = {
+                                showExtensionMarket = true
+                                viewModel.fetchExtensions()
+                            }) {
+                                Icon(
+                                    FeatherIcons.DownloadCloud,
+                                    contentDescription = stringResource(R.string.extension_market_title),
                                     tint = MaterialTheme.colorScheme.onBackground,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -1250,6 +1265,19 @@ fun SettingsScreen(
                 showMcpJsonImport = true
             },
             onDismiss = { showMcpAddSheet = false }
+        )
+    }
+
+    if (showExtensionMarket) {
+        ExtensionMarketSheet(
+            marketState = extensionMarketState,
+            downloadState = extensionDownloadState,
+            onRefresh = { viewModel.fetchExtensions() },
+            onInstall = { item -> viewModel.installExtension(item) },
+            onDismiss = {
+                showExtensionMarket = false
+                viewModel.clearExtensionDownloadState()
+            }
         )
     }
 

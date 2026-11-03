@@ -529,6 +529,7 @@
     <!-- About -->
     <string name="about_version">Version</string>
     <string name="about_github_repo">GitHub Repository</string>
+    <string name="about_upstream_repo">Upstream Repository</string>
     <string name="about_license">Open Source License</string>
     <string name="about_description">Universal AI Coding Agent for Android · Linux dev environment · Local &amp; remote SSH</string>
     <string name="about_check_update">Check for updates</string>
@@ -1488,6 +1489,15 @@
     <string name="provider_models_count">Models (%1$s)</string>
     <string name="provider_models_count_tag">%1$d models</string>
     <string name="provider_fetch_models">Fetch Models</string>
+    <string name="extension_market_title">Extension Market</string>
+    <string name="extension_market_refresh">Refresh</string>
+    <string name="extension_market_empty">No extensions</string>
+    <string name="extension_market_load_failed">Failed to load</string>
+    <string name="extension_market_download">Install</string>
+    <string name="extension_market_downloading">Downloading…</string>
+    <string name="extension_market_download_failed">Download failed</string>
+    <string name="extension_market_install_permission">Authorize</string>
+    <string name="extension_market_retry">Retry</string>
     <string name="provider_add_all_models">Add All</string>
     <string name="provider_add_all_models_title">Add All Models</string>
     <string name="provider_add_all_models_confirm">Add all %1$d fetched models to this provider?</string>

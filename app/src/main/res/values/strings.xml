@@ -529,6 +529,7 @@
     <!-- About -->
     <string name="about_version">版本</string>
     <string name="about_github_repo">GitHub 仓库</string>
+    <string name="about_upstream_repo">上游仓库</string>
     <string name="about_license">开源许可证</string>
     <string name="about_description">Android 上的通用 AI Coding Agent · Linux 开发环境 · 支持本地与远程 SSH</string>
     <string name="about_check_update">检查更新</string>
@@ -1495,6 +1496,15 @@
     <string name="provider_models_count">模型（%1$s）</string>
     <string name="provider_models_count_tag">%1$d 个模型</string>
     <string name="provider_fetch_models">拉取模型</string>
+    <string name="extension_market_title">扩展市场</string>
+    <string name="extension_market_refresh">刷新</string>
+    <string name="extension_market_empty">暂无扩展</string>
+    <string name="extension_market_load_failed">加载失败</string>
+    <string name="extension_market_download">下载安装</string>
+    <string name="extension_market_downloading">下载中…</string>
+    <string name="extension_market_download_failed">下载失败</string>
+    <string name="extension_market_install_permission">去授权</string>
+    <string name="extension_market_retry">重试</string>
     <string name="provider_add_all_models">全部添加</string>
     <string name="provider_add_all_models_title">添加全部模型</string>
     <string name="provider_add_all_models_confirm">确定将拉取到的 %1$d 个模型全部添加至当前提供商？</string>

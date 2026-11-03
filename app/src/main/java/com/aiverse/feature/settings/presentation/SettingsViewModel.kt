@@ -56,6 +56,8 @@ import com.aiverse.feature.settings.data.remote.ModelMetadataService
 import com.aiverse.feature.settings.data.remote.ModelTestResult
 import com.aiverse.feature.settings.data.remote.ApkDownloadResult
 import com.aiverse.feature.settings.data.remote.ApkDownloader
+import com.aiverse.feature.settings.data.remote.ExtensionApiService
+import com.aiverse.feature.settings.data.remote.ExtensionItem
 import com.aiverse.feature.settings.data.remote.ApkVerifier
 import com.aiverse.feature.settings.data.remote.ApkVerifyResult
 import com.aiverse.feature.settings.data.remote.UpdateAsset
@@ -134,6 +136,22 @@ sealed class FetchState {
     object Loading : FetchState()
     data class Success(val models: List<String>, val debugInfo: ModelTestResult? = null) : FetchState()
     data class Error(val message: String, val debugInfo: ModelTestResult? = null) : FetchState()
+}
+
+/** 扩展市场列表状态：空闲 / 加载中 / 成功（条目列表）/ 失败。 */
+sealed interface ExtensionMarketState {
+    data object Idle : ExtensionMarketState
+    data object Loading : ExtensionMarketState
+    data class Success(val items: List<ExtensionItem>) : ExtensionMarketState
+    data class Error(val message: String) : ExtensionMarketState
+}
+
+/** 扩展 APK 下载/安装状态。 */
+sealed interface ExtensionDownloadState {
+    data object Idle : ExtensionDownloadState
+    data class Downloading(val name: String, val progress: Float) : ExtensionDownloadState
+    data class NeedPermission(val name: String) : ExtensionDownloadState
+    data class Failed(val name: String, val message: String) : ExtensionDownloadState
 }
 
 /** 镜像下载页的完整 UI 状态：空闲 / 下载中（进度）/ 下载完成（可安装）/ 失败。 */
@@ -366,6 +384,7 @@ class SettingsViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: AIProviderRepository,
     private val modelApiService: ModelApiService,
+    private val extensionApiService: ExtensionApiService,
     private val modelMetadataService: ModelMetadataService,
     private val logSettingsRepository: LogSettingsRepository,
     private val themeSettingsRepository: ThemeSettingsRepository,
@@ -639,6 +658,12 @@ class SettingsViewModel @Inject constructor(
 
     private val _mcpEntries = MutableStateFlow<List<McpServerEntry>>(emptyList())
     val mcpEntries: StateFlow<List<McpServerEntry>> = _mcpEntries.asStateFlow()
+
+    private val _extensionMarketState = MutableStateFlow<ExtensionMarketState>(ExtensionMarketState.Idle)
+    val extensionMarketState: StateFlow<ExtensionMarketState> = _extensionMarketState.asStateFlow()
+
+    private val _extensionDownloadState = MutableStateFlow<ExtensionDownloadState>(ExtensionDownloadState.Idle)
+    val extensionDownloadState: StateFlow<ExtensionDownloadState> = _extensionDownloadState.asStateFlow()
 
     private val _skills = MutableStateFlow<List<SkillUiEntry>>(emptyList())
     val skills: StateFlow<List<SkillUiEntry>> = _skills.asStateFlow()
@@ -2854,6 +2879,67 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
         }
+    }
+
+    /** 扩展市场后端 API 地址（用户部署的 PHP，只读 `?action=get`）。 */
+    private val extensionMarketApiUrl = "https://aiverse.qlyyz.xyz/api/extensions_api.php"
+
+    /** 拉取扩展市场列表（`?action=get`）。 */
+    fun fetchExtensions() {
+        viewModelScope.launch {
+            _extensionMarketState.value = ExtensionMarketState.Loading
+            extensionApiService.fetchExtensions(extensionMarketApiUrl)
+                .onSuccess { items ->
+                    _extensionMarketState.value = ExtensionMarketState.Success(items)
+                }
+                .onFailure { error ->
+                    _extensionMarketState.value = ExtensionMarketState.Error(
+                        error.message ?: context.getString(R.string.common_error)
+                    )
+                }
+        }
+    }
+
+    /** 下载扩展 APK 并拉起系统安装器（用户在系统弹窗里确认安装）。 */
+    fun installExtension(item: ExtensionItem) {
+        if (item.downloadUrl.isBlank()) {
+            _extensionDownloadState.value = ExtensionDownloadState.Failed(item.name, context.getString(R.string.common_error))
+            return
+        }
+        viewModelScope.launch {
+            _extensionDownloadState.value = ExtensionDownloadState.Downloading(item.name, 0f)
+            extensionApiService.downloadApk(item.downloadUrl, item.name) { downloaded, total ->
+                val p = if (total > 0) downloaded.toFloat() / total else 0f
+                _extensionDownloadState.value = ExtensionDownloadState.Downloading(item.name, p.coerceIn(0f, 1f))
+            }
+                .onSuccess { apk ->
+                    when (val r = ApkInstaller.install(context, apk)) {
+                        ApkInstaller.Result.STARTED ->
+                            _extensionDownloadState.value = ExtensionDownloadState.Idle
+                        ApkInstaller.Result.NEED_PERMISSION ->
+                            _extensionDownloadState.value = ExtensionDownloadState.NeedPermission(item.name)
+                        ApkInstaller.Result.NO_HANDLER ->
+                            _extensionDownloadState.value = ExtensionDownloadState.Failed(
+                                item.name, context.getString(R.string.common_error)
+                            )
+                    }
+                }
+                .onFailure { error ->
+                    _extensionDownloadState.value = ExtensionDownloadState.Failed(
+                        item.name, error.message ?: context.getString(R.string.common_error)
+                    )
+                }
+        }
+    }
+
+    /** 打开「允许安装未知应用」设置页。 */
+    fun openExtensionInstallPermissionSettings() {
+        ApkInstaller.openInstallPermissionSettings(context)
+    }
+
+    /** 清空下载状态（关闭提示后）。 */
+    fun clearExtensionDownloadState() {
+        _extensionDownloadState.value = ExtensionDownloadState.Idle
     }
 
     fun resolveModelMetadata(providerId: String, type: ProviderType, modelIds: List<String>) {

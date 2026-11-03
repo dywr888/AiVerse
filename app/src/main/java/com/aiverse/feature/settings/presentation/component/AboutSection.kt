@@ -53,6 +53,7 @@ import com.aiverse.feature.settings.data.repository.DEFAULT_DOWNLOAD_MIRROR
 import com.aiverse.feature.settings.data.repository.UpdateChannel
 import com.aiverse.feature.settings.data.repository.isValidDownloadMirror
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.GitBranch
 import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.Book
 import compose.icons.feathericons.Check
@@ -185,6 +186,13 @@ internal fun AboutSection(
                 icon = FeatherIcons.Github,
                 title = stringResource(R.string.about_github_repo),
                 onClick = { openUrl(context, GITHUB_REPO_URL) }
+            )
+            SettingsDivider()
+            // 上游仓库（aicode 官方）
+            SettingsRow(
+                icon = FeatherIcons.GitBranch,
+                title = stringResource(R.string.about_upstream_repo),
+                onClick = { openUrl(context, UPSTREAM_REPO_URL) }
             )
             SettingsDivider()
             // 许可证
@@ -550,5 +558,6 @@ private fun loadAppIconBitmap(context: Context): ImageBitmap? {
 }
 
 private const val GITHUB_REPO_URL = "https://github.com/yhdmgf/AiVerse"
+private const val UPSTREAM_REPO_URL = "https://github.com/jieapi/AiCode"
 private const val LICENSE_URL = "https://github.com/yhdmgf/AiVerse/blob/main/LICENSE"
 private const val ICON_PX_DP = 48
