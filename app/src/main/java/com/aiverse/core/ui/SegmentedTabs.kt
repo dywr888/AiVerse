@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.theme.LocalHyperOSStyle
 
 /**
  * iOS 风分段控件：中性灰轨道 + 白色（深色下为抬起灰）滑块，选中时滑块弹性滑到对应一段。
@@ -50,14 +51,15 @@ fun SegmentedTabs(
     enabled: Boolean = true
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val hyperOS = LocalHyperOSStyle.current
     val trackColor = MaterialTheme.semanticColors.mutedSurface
     val thumbColor = if (dark) MaterialTheme.semanticColors.capsuleSurface else MaterialTheme.semanticColors.cardSurface
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(if (hyperOS) 40.dp else 42.dp)
+            .clip(RoundedCornerShape(if (hyperOS) 20.dp else 12.dp))
             .background(trackColor)
             .padding(3.dp)
             .alpha(if (enabled) 1f else 0.55f)
@@ -74,7 +76,7 @@ fun SegmentedTabs(
                 .offset(x = thumbOffset)
                 .width(thumbWidth)
                 .fillMaxHeight(),
-            shape = RoundedCornerShape(9.dp),
+            shape = RoundedCornerShape(if (hyperOS) 17.dp else 9.dp),
             color = thumbColor,
             shadowElevation = 2.dp,
             content = {}
@@ -86,7 +88,7 @@ fun SegmentedTabs(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(9.dp))
+                        .clip(RoundedCornerShape(if (hyperOS) 17.dp else 9.dp))
                         // 禁用点击波纹：选中滑块位移已是反馈，ripple 残留的深色阴影反而扎眼。
                         // 锁定时完全去掉 clickable（含无障碍点击语义），再叠整体置灰。
                         .then(

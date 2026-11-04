@@ -1,6 +1,7 @@
 package com.aiverse.feature.agent.presentation.component
 
 import android.content.ClipData
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.ClipEntry
@@ -38,11 +42,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.unit.dp
 import com.aiverse.R
 import com.aiverse.core.theme.Spacing
+import com.aiverse.core.theme.ChatBubbleStyle
+import com.aiverse.core.theme.LocalChatBubbleStyle
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Check
 import compose.icons.feathericons.Copy
@@ -85,13 +89,53 @@ internal object ChatStyle {
     val rowIconSize = 16.dp
 }
 
-/** 用户消息底色：浅色主题下即主题容器色（默认蓝即参考图那种淡蓝），深色下自动变深。 */
+/** 用户消息底色：按所选聊天气泡样式返回。 */
 @Composable
-internal fun chatUserBubbleColor(): Color = MaterialTheme.colorScheme.primaryContainer
+internal fun chatUserBubbleColor(): Color {
+    return when (LocalChatBubbleStyle.current) {
+        ChatBubbleStyle.CLASSIC_OUTLINE,
+        ChatBubbleStyle.SOFT_SHADOW,
+        ChatBubbleStyle.MINIMAL_WHITE -> MaterialTheme.colorScheme.surface
+        ChatBubbleStyle.DARK_MODE -> Color(0xFF121212)
+        ChatBubbleStyle.COMIC -> Color.White
+        ChatBubbleStyle.FRESH_GREEN -> Color(0xFF4CAF50)
+        ChatBubbleStyle.HEARTBEAT -> Color(0xFFF2F2F2)
+        ChatBubbleStyle.ORIGINAL -> MaterialTheme.colorScheme.primary
+    }
+}
 
-/** 用户消息文字：压在浅药丸上的深色文字，不再用白字反白。 */
+/** 用户消息文字：按所选聊天气泡样式返回。 */
 @Composable
-internal fun chatUserBubbleTextColor(): Color = MaterialTheme.colorScheme.onPrimaryContainer
+internal fun chatUserBubbleTextColor(): Color {
+    return when (LocalChatBubbleStyle.current) {
+        ChatBubbleStyle.DARK_MODE -> Color.White
+        ChatBubbleStyle.FRESH_GREEN -> Color(0xFF1B1B1B)
+        ChatBubbleStyle.ORIGINAL -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+}
+
+/** 用户气泡描边：仅白描边/漫画/心动有边，其余无。 */
+@Composable
+internal fun chatUserBubbleBorder(): BorderStroke? {
+    return when (LocalChatBubbleStyle.current) {
+        ChatBubbleStyle.CLASSIC_OUTLINE -> BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface)
+        ChatBubbleStyle.COMIC -> BorderStroke(2.dp, Color.Black)
+        ChatBubbleStyle.HEARTBEAT -> BorderStroke(1.5.dp, Color(0xFFBDBDBD))
+        else -> null
+    }
+}
+
+/** 用户气泡圆角：清新绿大圆角，其余 10dp。 */
+@Composable
+internal fun chatUserBubbleShape(): CornerBasedShape =
+    if (LocalChatBubbleStyle.current == ChatBubbleStyle.FRESH_GREEN) RoundedCornerShape(24.dp)
+    else RoundedCornerShape(10.dp)
+
+/** 用户气泡阴影：柔和投影有阴影，其余无。 */
+@Composable
+internal fun chatUserBubbleShadowElevation(): Dp =
+    if (LocalChatBubbleStyle.current == ChatBubbleStyle.SOFT_SHADOW) 4.dp else 0.dp
 
 /** 1px 细线：扁平风格里唯一的分组手段。 */
 @Composable

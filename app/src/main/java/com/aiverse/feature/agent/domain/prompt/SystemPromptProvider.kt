@@ -3,6 +3,7 @@ package com.aiverse.feature.agent.domain.prompt
 import android.content.Context
 import com.aiverse.core.util.FileLogger
 import com.aiverse.feature.agent.domain.container.ContainerInstaller
+import com.aiverse.feature.agent.domain.memory.Memory
 import com.aiverse.feature.agent.domain.memory.MemoryRepository
 import com.aiverse.feature.agent.domain.memory.MemoryScope
 import com.aiverse.feature.agent.domain.model.AgentContext
@@ -223,14 +224,30 @@ class SystemPromptProvider @Inject constructor(
             }
             val global = memories.filter { it.scope == MemoryScope.GLOBAL }
                 .takeIf { it.isNotEmpty() }
-                ?.joinToString("\n") { "- ${it.name}: ${it.description.ifBlank { "无" } }" }
+                ?.joinToString("\n") { it.toPromptLine() }
             val project = memories.filter { it.scope == MemoryScope.PROJECT }
                 .takeIf { it.isNotEmpty() }
-                ?.joinToString("\n") { "- ${it.name}: ${it.description.ifBlank { "无" } }" }
+                ?.joinToString("\n") { it.toPromptLine() }
             val result = MemoryLists(global, project)
             cachedByKey[key] = result
             trimIfNeeded()
             return result
+        }
+
+        fun invalidate() {
+            cachedByKey.clear()
+        }
+
+        /** 记忆清单行：含摘要与正文（限长），AI 无需 read 即可直接看到内容。 */
+        private fun Memory.toPromptLine(): String {
+            val body = content.trim()
+            val snippet = when {
+                body.isEmpty() -> "（无正文）"
+                body.length <= MEMORY_CONTENT_LIMIT -> body
+                else -> body.take(MEMORY_CONTENT_LIMIT) +
+                    "\n  （正文过长已截断，完整内容用 memory(action=\"read\", name=\"$name\") 读取）"
+            }
+            return "- $name: ${description.ifBlank { "无" }}\n  正文：$snippet"
         }
 
         private fun trimIfNeeded() {
@@ -267,6 +284,11 @@ class SystemPromptProvider @Inject constructor(
     /** 自定义目录顶层数字片段（数字身份 → 文件），进程内只扫一次（重启 App 才刷新）。 */
     private val customFragmentsByNumber: Map<Int, File> by lazy {
         PromptFragmentResolver.numberedFragments(customDir).toMap()
+    }
+
+    /** 记忆变更后调用：清空记忆清单的会话级缓存，下一轮 build 重新读盘，让新记忆立即进入提示词。 */
+    fun invalidateMemoryCache() {
+        memoryListSource.invalidate()
     }
 
     fun build(agentContext: AgentContext): String {
@@ -488,6 +510,8 @@ class SystemPromptProvider @Inject constructor(
         const val MAX_AGENTS_CHARS = 32_000
         /** 会话级缓存 key 数量上限：超过后整体清空，仅防长期累积；正常会话数远小于此。 */
         const val SOURCE_CACHE_LIMIT = 32
+        /** 注入提示词的记忆正文限长（字符）：超出截断并提示用 memory read 补全。 */
+        const val MEMORY_CONTENT_LIMIT = 2000
         val LEADING_COMMENT = Regex("(?s)^\\s*<!--.*?-->\\s*")
 
         /** 内置静态基线：数字身份 → 规范文件名，决定默认拼接顺序。 */

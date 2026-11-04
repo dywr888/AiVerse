@@ -152,11 +152,41 @@ data class AppThemePreset(
             )
         )
 
-        /** 咖啡默认排第一（应用默认主题），品牌蓝退居第二，其后石墨、森林。 */
-        val ALL_PRESETS = listOf(COFFEE, DEFAULT, GRAPHITE, FOREST)
+        /** HyperOS：浅灰页底 + 纯白卡片 + #3482FF 主色，深色纯黑底 + 深灰卡片。应用默认主题。 */
+        val HYPEROS = fromSeeds(
+            id = "hyperos",
+            nameRes = R.string.theme_preset_hyperos,
+            lightSeed = AppThemeSeed(
+                primary = Color(0xFF3482FF),
+                secondary = Color(0xFF5AC8FA),
+                tertiary = Color(0xFFFF8A00),
+                background = Color(0xFFF5F5F6),
+                surface = Color(0xFFFFFFFF),
+                surfaceVariant = Color(0xFFF2F2F3),
+                onSurface = Color(0xFF1C1C1E),
+                onSurfaceVariant = Color(0xFF6E6E73),
+                outline = Color(0xFFD1D1D6),
+                outlineVariant = Color(0xFFE5E5EA)
+            ),
+            darkSeed = AppThemeSeed(
+                primary = Color(0xFF4A8DFF),
+                secondary = Color(0xFF5AC8FA),
+                tertiary = Color(0xFFFF8A00),
+                background = Color(0xFF000000),
+                surface = Color(0xFF17171A),
+                surfaceVariant = Color(0xFF232326),
+                onSurface = Color(0xFFFFFFFF),
+                onSurfaceVariant = Color(0xFF8E8E93),
+                outline = Color(0xFF38383C),
+                outlineVariant = Color(0xFF2C2C30)
+            )
+        )
+
+        /** HyperOS 默认排第一（应用默认主题），咖啡退居第二，其后品牌蓝、石墨、森林。 */
+        val ALL_PRESETS = listOf(HYPEROS, COFFEE, DEFAULT, GRAPHITE, FOREST)
 
         fun findById(id: String?): AppThemePreset =
-            ALL_PRESETS.firstOrNull { it.id == id } ?: COFFEE
+            ALL_PRESETS.firstOrNull { it.id == id } ?: HYPEROS
 
         private fun fromSeeds(
             id: String,

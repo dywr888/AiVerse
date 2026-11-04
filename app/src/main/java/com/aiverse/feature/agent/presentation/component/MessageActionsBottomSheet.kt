@@ -29,6 +29,7 @@ import com.aiverse.core.theme.Spacing
 import com.aiverse.feature.agent.presentation.AgentUIMessage
 import com.aiverse.feature.agent.presentation.hasVisibleContent
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.Bookmark
 import compose.icons.feathericons.Copy
 import compose.icons.feathericons.Edit2
 import compose.icons.feathericons.GitBranch
@@ -41,6 +42,7 @@ internal fun MessageActionsBottomSheet(
     onDismiss: () -> Unit,
     onEditClick: () -> Unit,
     onCopyClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
     onForkClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -87,6 +89,16 @@ internal fun MessageActionsBottomSheet(
                     }
                 )
             }
+
+            // 收藏消息内容
+            MessageActionItem(
+                icon = FeatherIcons.Bookmark,
+                title = stringResource(R.string.chat_action_favorite),
+                onClick = {
+                    onDismiss()
+                    onFavoriteClick()
+                }
+            )
 
             // 从此消息分叉新会话：保留到此为止的完整历史，原会话不动
             MessageActionItem(

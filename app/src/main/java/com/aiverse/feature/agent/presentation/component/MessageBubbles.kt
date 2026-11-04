@@ -4,6 +4,7 @@ import android.content.ClipData
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
@@ -43,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
@@ -58,6 +61,8 @@ import com.aiverse.R
 import com.aiverse.core.theme.Brand
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.theme.ChatBubbleStyle
+import com.aiverse.core.theme.LocalChatBubbleStyle
 import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ContentWidth
 import com.aiverse.core.ui.ExpandableChevronIcon
@@ -344,25 +349,48 @@ internal fun AgentMessageItem(
                                 )
                             }
                         } else if (isUser) {
-                            // 用户消息：右对齐浅色药丸 + 深色文字（不再整块主题色反白）。
-                            Surface(
-                                shape = RoundedCornerShape(ChatStyle.bubbleCorner),
-                                color = chatUserBubbleColor(),
+                            val bubbleStyle = LocalChatBubbleStyle.current
+                            // 用户消息：右对齐气泡，外观由所选聊天气泡样式决定。
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.widthIn(max = maxUserBubbleWidth)
                             ) {
-                                SelectionContainer {
-                                    CompositionLocalProvider(
-                                        LocalTextSelectionColors provides TextSelectionColors(
-                                            handleColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            backgroundColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.24f),
-                                        )
+                                Surface(
+                                    shape = chatUserBubbleShape(),
+                                    color = chatUserBubbleColor(),
+                                    border = chatUserBubbleBorder(),
+                                    shadowElevation = chatUserBubbleShadowElevation(),
+                                    modifier = Modifier.weight(1f, fill = false)
+                                ) {
+                                    SelectionContainer {
+                                        CompositionLocalProvider(
+                                            LocalTextSelectionColors provides TextSelectionColors(
+                                                handleColor = MaterialTheme.colorScheme.primary,
+                                                backgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f),
+                                            )
+                                        ) {
+                                            Text(
+                                                text = message.content,
+                                                color = chatUserBubbleTextColor(),
+                                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                                                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                                            )
+                                        }
+                                    }
+                                }
+                                if (bubbleStyle == ChatBubbleStyle.COMIC) {
+                                    // 漫画风格：右侧黑色小箭头（气泡尾巴）。
+                                    Canvas(
+                                        modifier = Modifier
+                                            .size(9.dp, 14.dp)
                                     ) {
-                                        Text(
-                                            text = message.content,
-                                            color = chatUserBubbleTextColor(),
-                                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                                            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                                        )
+                                        val path = Path().apply {
+                                            moveTo(0f, 0f)
+                                            lineTo(size.width, size.height / 2f)
+                                            lineTo(0f, size.height)
+                                            close()
+                                        }
+                                        drawPath(path, Color.Black)
                                     }
                                 }
                             }

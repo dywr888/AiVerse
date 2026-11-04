@@ -84,6 +84,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aiverse.core.theme.AIEditorTheme
 import com.aiverse.core.theme.AppThemePreset
+import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.ui.BetaWatermark
 import com.aiverse.core.ui.ImageSource
 import com.aiverse.core.ui.ImageViewerHost
@@ -291,6 +292,8 @@ class MainActivity : ComponentActivity() {
             val themeMode by themeSettings.themeModeFlow.collectAsStateWithLifecycle(initialValue = AppThemeMode.AUTO)
             val themePresetId by themeSettings.themePresetIdFlow.collectAsStateWithLifecycle(initialValue = null)
             val dynamicColor by themeSettings.dynamicColorFlow.collectAsStateWithLifecycle(initialValue = false)
+            val iconColorful by themeSettings.iconColorFlow.collectAsStateWithLifecycle(initialValue = true)
+            val bubbleStyle by themeSettings.bubbleStyleFlow.collectAsStateWithLifecycle(initialValue = ChatBubbleStyle.CLASSIC_OUTLINE)
             val systemDarkTheme = isSystemInDarkTheme()
             val darkTheme = when (themeMode) {
                 AppThemeMode.AUTO -> systemDarkTheme
@@ -311,7 +314,9 @@ class MainActivity : ComponentActivity() {
             AIEditorTheme(
                 darkTheme = darkTheme,
                 preset = AppThemePreset.findById(themePresetId),
-                dynamicColor = dynamicColor
+                dynamicColor = dynamicColor,
+                iconColorful = iconColorful,
+                bubbleStyle = bubbleStyle
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -704,6 +709,12 @@ fun AppNavigation(
                 openWorkbench(WorkbenchPaneKind.BROWSER)
                 if (!permanentDrawer) scope.launch { drawerState.close() }
             },
+            onOpenFavorites = {
+                if (!permanentDrawer) {
+                    scope.launch { drawerState.snapTo(DrawerValue.Closed) }
+                }
+                navController.navigate("favorites")
+            },
             onNavigateToSettings = {
                 navController.navigate("settings")
                 if (!permanentDrawer) scope.launch { drawerState.snapTo(DrawerValue.Closed) }
@@ -781,6 +792,12 @@ fun AppNavigation(
                                         if (onboardingUiState.active && onboardingUiState.step == OnboardingStep.SIMULATE_CHOOSE_MODEL) {
                                             onboardingCoordinator.goToStep(OnboardingStep.OPEN_MODEL_PICKER)
                                         }
+                                    },
+                                    onOpenProviders = {
+                                        navController.navigate("settings?section=providers&from=chat")
+                                    },
+                                    onOpenMcp = {
+                                        navController.navigate("settings?section=mcp&from=chat")
                                     }
                                 )
                             }
@@ -813,16 +830,25 @@ fun AppNavigation(
                     }
                 }
             }
-            composable("settings") {
+            composable(
+                route = "settings?section={section}&from={from}",
+                arguments = listOf(
+                    navArgument("section") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("from") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) { backStackEntry ->
+                val sectionArg = backStackEntry.arguments?.getString("section").orEmpty()
+                val fromChat = backStackEntry.arguments?.getString("from") == "chat"
                 // 复用 Activity 级 settingsViewModel（MainActivity 顶部已创建并 init），
                 // 避免进入设置页时再建一个 NavBackStackEntry 级实例、重复跑 init 与 9 路 flow 订阅，
                 // 这是侧边栏点设置「卡一下」的主因。
                 SettingsScreen(
                     viewModel = settingsViewModel,
+                    initialSection = sectionArg,
                     onNavigateBack = {
                         navController.popBackStack()
-                        // 大屏返回聊天页后侧栏本就常驻，不再弹 modal 抽屉。
-                        if (!expanded) scope.launch { drawerState.open() }
+                        // 从聊天快捷入口进设置页时，返回直接回聊天页，不弹抽屉。
+                        if (!expanded && !fromChat) scope.launch { drawerState.open() }
                     },
                     onStopAllAndCloseTerminal = { agentViewModel.stopAllAndCloseTerminal() },
                     onRerunOnboarding = {
@@ -847,6 +873,28 @@ fun AppNavigation(
                             onboardingCoordinator.goToStep(OnboardingStep.PROVIDER_FETCH_MODELS)
                         }
                     }
+                )
+            }
+            composable("favorites") {
+                val favoriteViewModel: com.aiverse.feature.agent.presentation.FavoriteViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel()
+                com.aiverse.feature.agent.presentation.FavoritesScreen(
+                    viewModel = favoriteViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenDetail = { id -> navController.navigate("favorites/$id") }
+                )
+            }
+            composable(
+                route = "favorites/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { entry ->
+                val favoriteId = entry.arguments?.getString("id")
+                val favoriteViewModel: com.aiverse.feature.agent.presentation.FavoriteViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel()
+                com.aiverse.feature.agent.presentation.FavoritesDetailScreen(
+                    viewModel = favoriteViewModel,
+                    favoriteId = favoriteId,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable("terminal") { entry ->

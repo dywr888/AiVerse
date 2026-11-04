@@ -62,6 +62,8 @@ internal fun ThemeSelectionSheet(
     onSelected: (AppThemeMode) -> Unit,
     onPresetSelected: (String) -> Unit,
     onDynamicColorChanged: (Boolean) -> Unit,
+    iconColorEnabled: Boolean,
+    onIconColorChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -168,6 +170,33 @@ internal fun ThemeSelectionSheet(
                     checked = dynamicColorEnabled && isDynamicColorSupported,
                     onCheckedChange = onDynamicColorChanged,
                     enabled = isDynamicColorSupported
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.theme_icon_color),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.theme_icon_color_desc),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(Spacing.md))
+                AppSwitch(
+                    checked = iconColorEnabled,
+                    onCheckedChange = onIconColorChanged
                 )
             }
         }

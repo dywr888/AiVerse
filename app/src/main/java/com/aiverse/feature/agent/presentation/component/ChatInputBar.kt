@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -88,6 +89,7 @@ import com.aiverse.core.theme.Brand
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.ui.rememberImeBottomInset
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
@@ -129,6 +131,7 @@ import compose.icons.feathericons.Target
 import compose.icons.feathericons.X
 import compose.icons.feathericons.Maximize
 import compose.icons.feathericons.Minimize
+import compose.icons.feathericons.Box
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.Square
 import compose.icons.feathericons.Shield
@@ -202,6 +205,10 @@ internal fun ChatInputBar(
     forceOpenModelSheet: Boolean = false,
     onSelectModelInOnboarding: (() -> Unit)? = null,
     onModelSheetDismiss: (() -> Unit)? = null,
+    /** 长按模型图标时打开 AI 供应商设置页。 */
+    onOpenProviders: () -> Unit = {},
+    /** 点击输入区的 MCP 图标，直接打开 MCP 服务器设置页。 */
+    onOpenMcp: () -> Unit = {},
     /** 主页模型弹层的连通性测试：null（无设置页 ViewModel 的宿主）时弹层不显示测试按钮。 */
     onRunModelTest: (suspend (AIProviderConfig, String) -> ModelTestResult)? = null,
     modifier: Modifier = Modifier
@@ -477,17 +484,39 @@ internal fun ChatInputBar(
                 )
             }
 
+            val hyperOS = LocalHyperOSStyle.current
+            val inputShape = if (hyperOS) RoundedCornerShape(20.dp) else RoundedCornerShape(Radius.lg)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant,
-                        RoundedCornerShape(Radius.lg)
+                    .then(
+                        if (hyperOS) {
+                            Modifier.shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(20.dp),
+                                clip = false,
+                                ambientColor = Color.Black.copy(alpha = 0.08f),
+                                spotColor = Color.Black.copy(alpha = 0.08f)
+                            )
+                        } else {
+                            Modifier
+                        }
                     )
-                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+                    .clip(inputShape)
+                    .background(
+                        if (hyperOS) MaterialTheme.colorScheme.surface
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+                    )
+                    .border(
+                        if (hyperOS) 0.5.dp else 1.dp,
+                        if (hyperOS) MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                        else MaterialTheme.colorScheme.outlineVariant,
+                        inputShape
+                    )
+                    .padding(
+                        horizontal = if (hyperOS) 10.dp else Spacing.sm,
+                        vertical = if (hyperOS) 8.dp else Spacing.xs
+                    )
             ) {
                 PendingAttachmentPreviewList(
                     attachments = pendingAttachments,
@@ -615,6 +644,7 @@ internal fun ChatInputBar(
                             forceOpenSheet = forceOpenModelSheet,
                             onSelectSuccessInOnboarding = onSelectModelInOnboarding,
                             onSheetDismiss = onModelSheetDismiss,
+                            onOpenProviders = onOpenProviders,
                             runModelTest = onRunModelTest,
                             modifier = Modifier.onboardingTarget(OnboardingStep.OPEN_MODEL_PICKER)
                         )
@@ -626,6 +656,15 @@ internal fun ChatInputBar(
                                 onSwitchConfirmed = onSwitchWorkspaceConfirmed,
                                 modifier = Modifier.size(36.dp),
                                 iconSize = 20.dp
+                            )
+                        }
+
+                        IconButton(onClick = onOpenMcp, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                FeatherIcons.Box,
+                                contentDescription = stringResource(R.string.settings_mcp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 

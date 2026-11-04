@@ -8,11 +8,15 @@ import com.aiverse.feature.agent.data.local.dao.AgentMessageDao
 import com.aiverse.feature.agent.data.local.dao.ChatSessionDao
 import com.aiverse.feature.agent.data.local.dao.TodoItemDao
 import com.aiverse.feature.agent.data.local.database.AgentDatabase
+import com.aiverse.feature.agent.data.repository.FavoriteItem
+import com.aiverse.feature.agent.data.repository.FavoriteRepository
 import com.aiverse.feature.agent.data.local.entity.AgentMessageEntity
 import com.aiverse.feature.agent.data.local.entity.ChatSessionEntity
 import com.aiverse.feature.agent.data.local.entity.TodoItemEntity
 import com.aiverse.feature.agent.domain.mcp.McpConfigRepository
 import com.aiverse.feature.agent.domain.mcp.McpManager
+import com.aiverse.feature.agent.domain.memory.MemoryRepository
+import com.aiverse.feature.agent.domain.memory.MemoryScope
 import com.aiverse.feature.agent.domain.permission.PermissionRulesRepository
 import com.aiverse.feature.backup.domain.AgentMessageDto
 import com.aiverse.feature.backup.domain.BackupCrypto
@@ -22,7 +26,9 @@ import com.aiverse.feature.backup.domain.BackupMetadata
 import com.aiverse.feature.backup.domain.BackupOptions
 import com.aiverse.feature.backup.domain.BackupSnapshot
 import com.aiverse.feature.backup.domain.ChatSessionDto
+import com.aiverse.feature.backup.domain.FavoriteItemDto
 import com.aiverse.feature.backup.domain.ImportPreview
+import com.aiverse.feature.backup.domain.MemoryDto
 import com.aiverse.feature.backup.domain.ProviderDto
 import com.aiverse.feature.backup.domain.RemoteConnectionDto
 import com.aiverse.feature.backup.domain.RemoteMountDto
@@ -94,7 +100,9 @@ class BackupManagerImpl @Inject constructor(
     private val visionModelSettingsRepository: VisionModelSettingsRepository,
     private val compactionModelSettingsRepository: CompactionModelSettingsRepository,
     private val syncSettingsRepository: SyncSettingsRepository,
-    private val workspaceRepository: WorkspaceRepository
+    private val workspaceRepository: WorkspaceRepository,
+    private val memoryRepository: MemoryRepository,
+    private val favoriteRepository: FavoriteRepository
 ) : BackupManager {
 
     private val json = Json {
@@ -372,8 +380,26 @@ class BackupManagerImpl @Inject constructor(
         compactionModel = if (options.appSettings) compactionModelSettingsRepository.getCompactionModel() else "",
         syncSettings = if (options.appSettings) syncSettingsRepository.snapshot() else null,
         workspaces = if (options.workspaceFiles) collectWorkspaceMetas() else emptyList(),
+        memories = if (options.memories) collectMemories() else emptyList(),
+        favorites = if (options.favorites) favoriteRepository.getAllOnce().map { it.toDto() } else emptyList(),
         includesAppSettings = options.appSettings
     )
+
+    /** 收集全部记忆：全局 + 各工作区项目级（本地/远程工作区均可，远程经项目键映射到本地目录）。 */
+    private fun collectMemories(): List<MemoryDto> {
+        val result = mutableListOf<MemoryDto>()
+        memoryRepository.listGlobalMemories().forEach { m ->
+            result += MemoryDto(m.name, m.description, m.content, MemoryScope.GLOBAL.name)
+        }
+        val seenRoots = mutableSetOf<String>()
+        workspaceRepository.workspaces.value.forEach { ws ->
+            if (!seenRoots.add(ws.path)) return@forEach
+            memoryRepository.listProjectMemories(ws.path).forEach { m ->
+                result += MemoryDto(m.name, m.description, m.content, MemoryScope.PROJECT.name, ws.path)
+            }
+        }
+        return result
+    }
 
     private fun writeMetadataEntry(tar: TarArchiveOutputStream, metadata: BackupMetadata) {
         val content = json.encodeToString(BackupMetadata.serializer(), metadata).toByteArray(Charsets.UTF_8)
@@ -539,7 +565,7 @@ class BackupManagerImpl @Inject constructor(
             error("不是有效的 AiVerse 备份文件：缺少 metadata.json")
         }
         FileLogger.i(TAG, "tar 解析完成，开始还原元数据段")
-        return stats + restoreMeta(meta)
+        return stats + restoreMeta(meta, restoreMapping)
     }
 
     /** 逐行解析 jsonl 条目，每 [PAGE_SIZE] 条回调一次批量插入；返回该文件的总条数。 */
@@ -591,10 +617,10 @@ class BackupManagerImpl @Inject constructor(
 
     /** 旧格式（单文件 snapshot.json 完整快照）还原。 */
     private suspend fun restoreLegacy(snapshot: BackupSnapshot): RestoreStats {
-        var stats = restoreMeta(snapshot.toMetadata())
+        val restoreMapping = mutableMapOf<String, Workspace>()
+        var stats = restoreMeta(snapshot.toMetadata(), restoreMapping)
         if (snapshot.chatSessions.isNotEmpty()) {
             // 按备份中的工作区路径逐个解析到目标工作区（不存在则自动创建空工作区），不再全部塞进当前工作区。
-            val restoreMapping = mutableMapOf<String, Workspace>()
             chatSessionDao.upsertAll(
                 snapshot.chatSessions.map {
                     it.copy(workspacePath = resolveSessionWorkspace(it.workspacePath, restoreMapping)).toEntity()
@@ -614,8 +640,8 @@ class BackupManagerImpl @Inject constructor(
         )
     }
 
-    /** 元数据段还原（小表 + 应用设置），新旧格式共用。 */
-    private suspend fun restoreMeta(meta: BackupMetadata): RestoreStats {
+    /** 元数据段还原（小表 + 应用设置 + 记忆/收藏），新旧格式共用。 */
+    private suspend fun restoreMeta(meta: BackupMetadata, restoreMapping: MutableMap<String, Workspace>): RestoreStats {
         FileLogger.i(
             TAG,
             "还原元数据：providers=${meta.providers.size} remoteConnections=${meta.remoteConnections.size} remoteMounts=${meta.remoteMounts.size} " +
@@ -668,12 +694,31 @@ class BackupManagerImpl @Inject constructor(
             meta.syncSettings?.let { syncSettingsRepository.restore(it) }
         }
 
+        if (meta.memories.isNotEmpty()) {
+            meta.memories.forEach { dto ->
+                val scope = runCatching { MemoryScope.valueOf(dto.scope) }.getOrDefault(MemoryScope.GLOBAL)
+                if (scope == MemoryScope.GLOBAL) {
+                    memoryRepository.saveMemory(dto.name, dto.description, dto.content, MemoryScope.GLOBAL, null)
+                } else {
+                    val targetPath = resolveSessionWorkspace(dto.projectRoot, restoreMapping)
+                    memoryRepository.saveMemory(dto.name, dto.description, dto.content, MemoryScope.PROJECT, targetPath)
+                }
+            }
+            FileLogger.i(TAG, "恢复记忆 ${meta.memories.size} 条")
+        }
+        if (meta.favorites.isNotEmpty()) {
+            favoriteRepository.mergeAll(meta.favorites.map { it.toEntity() })
+            FileLogger.i(TAG, "恢复收藏 ${meta.favorites.size} 条")
+        }
+
         return RestoreStats(
             providers = meta.providers.size,
             remoteConnections = meta.remoteConnections.size,
             remoteMounts = meta.remoteMounts.size,
             mcpServers = meta.mcpServers.size,
-            globalPermissionRules = meta.globalPermissionRules.size
+            globalPermissionRules = meta.globalPermissionRules.size,
+            memories = meta.memories.size,
+            favorites = meta.favorites.size
         )
     }
 
@@ -883,6 +928,9 @@ class BackupManagerImpl @Inject constructor(
 
     private fun TodoItemEntity.toDto() = TodoItemDto(id, sessionId, subject, description, status, priority, order, createdAt, updatedAt)
     private fun TodoItemDto.toEntity() = TodoItemEntity(id, sessionId, subject, description, status, priority, order, createdAt, updatedAt)
+
+    private fun FavoriteItem.toDto() = FavoriteItemDto(id, content, sessionTitle, createdAt)
+    private fun FavoriteItemDto.toEntity() = FavoriteItem(id, content, sessionTitle, createdAt)
 
     private companion object {
         const val TAG = "BackupManager"

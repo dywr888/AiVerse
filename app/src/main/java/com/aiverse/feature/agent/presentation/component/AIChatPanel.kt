@@ -677,6 +677,10 @@ fun AIChatPanel(
     onboardingStep: OnboardingStep? = null,
     onSelectModelInOnboarding: (() -> Unit)? = null,
     onDismissModelSheetInOnboarding: (() -> Unit)? = null,
+    /** 长按模型图标 → AI 供应商设置页。 */
+    onOpenProviders: () -> Unit = {},
+    /** MCP 图标 → MCP 服务器设置页。 */
+    onOpenMcp: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val agentState by viewModel.agentState.collectAsStateWithLifecycle()
@@ -1875,6 +1879,8 @@ fun AIChatPanel(
                 forceOpenModelSheet = onboardingStep == OnboardingStep.SIMULATE_CHOOSE_MODEL,
                 onSelectModelInOnboarding = onSelectModelInOnboarding,
                 onModelSheetDismiss = onDismissModelSheetInOnboarding,
+                onOpenProviders = onOpenProviders,
+                onOpenMcp = onOpenMcp,
                 // 主页模型弹层的「测试」按钮：直接复用设置页的连通性测试链路，状态由弹层自己持有。
                 onRunModelTest = settingsViewModel?.let { svm -> { p, m -> svm.runModelTest(p, m) } },
                 modifier = Modifier
@@ -1952,6 +1958,8 @@ fun AIChatPanel(
             messageForMenu?.let { message ->
                 val clipboard = LocalClipboard.current
                 val copyScope = rememberCoroutineScope()
+                val favoriteViewModel: com.aiverse.feature.agent.presentation.FavoriteViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel()
                 MessageActionsBottomSheet(
                     message = message,
                     onDismiss = { messageForMenu = null },
@@ -1960,6 +1968,10 @@ fun AIChatPanel(
                         copyScope.launch {
                             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("message", message.content)))
                         }
+                    },
+                    onFavoriteClick = {
+                        favoriteViewModel.add(message.content)
+                        Toast.makeText(context, context.getString(R.string.favorites_added), Toast.LENGTH_SHORT).show()
                     },
                     onForkClick = { viewModel.forkFromMessage(message.id) },
                     onDeleteClick = { viewModel.deleteMessage(message.id) }

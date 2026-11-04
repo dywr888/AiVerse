@@ -9,6 +9,7 @@ import com.aiverse.feature.agent.domain.memory.MemoryEditResult
 import com.aiverse.feature.agent.domain.memory.MemoryRepository
 import com.aiverse.feature.agent.domain.memory.MemoryScope
 import com.aiverse.feature.agent.domain.model.AgentContext
+import com.aiverse.feature.agent.domain.prompt.SystemPromptProvider
 import com.aiverse.feature.agent.domain.tool.AbstractContextualTool
 import com.aiverse.feature.agent.domain.tool.ParameterType
 import com.aiverse.feature.agent.domain.tool.ToolCapability
@@ -26,10 +27,12 @@ import javax.inject.Inject
 
 class MemoryTool @Inject constructor(
     private val memoryRepository: MemoryRepository,
-    @param:ApplicationContext private val appContext: Context
+    @param:ApplicationContext private val appContext: Context,
+    private val systemPromptProvider: SystemPromptProvider
 ) : AbstractContextualTool() {
     private companion object {
         const val TAG = "MemoryTool"
+        val MEMORY_MUTATIONS = setOf("save", "edit", "delete")
     }
 
     override val name = "memory"
@@ -120,7 +123,7 @@ class MemoryTool @Inject constructor(
         val scope = if (scopeStr == "global") MemoryScope.GLOBAL else MemoryScope.PROJECT
 
         return try {
-            when (action) {
+            val result = when (action) {
                 "list" -> handleList(context.projectRoot)
                 "read" -> handleRead(memoryName, context.projectRoot)
                 "save" -> handleSave(args, memoryName, scope, context.projectRoot)
@@ -128,6 +131,11 @@ class MemoryTool @Inject constructor(
                 "delete" -> handleDelete(memoryName, scope, context.projectRoot)
                 else -> ToolResult.Error("不支持的操作：$action", "UNSUPPORTED_ACTION")
             }
+            // 记忆变更后清缓存，让当前会话下一轮 system prompt 立即带上新记忆。
+            if (result is ToolResult.Success && action in MEMORY_MUTATIONS) {
+                systemPromptProvider.invalidateMemoryCache()
+            }
+            result
         } catch (e: Exception) {
             FileLogger.e(TAG, "Memory 工具执行失败: ${e.message}", e)
             ToolResult.Error("记忆操作失败：${e.message}")

@@ -64,7 +64,9 @@ data class BackupOptions(
     val mcpServers: Boolean = true,
     val permissionRules: Boolean = true,
     val appSettings: Boolean = true,
-    val workspaceFiles: Boolean = false
+    val workspaceFiles: Boolean = false,
+    val memories: Boolean = true,
+    val favorites: Boolean = true
 )
 
 data class RestoreStats(
@@ -76,7 +78,9 @@ data class RestoreStats(
     val todoItems: Int = 0,
     val mcpServers: Int = 0,
     val globalPermissionRules: Int = 0,
-    val workspaceFiles: Int = 0
+    val workspaceFiles: Int = 0,
+    val memories: Int = 0,
+    val favorites: Int = 0
 ) {
     operator fun plus(other: RestoreStats) = RestoreStats(
         providers = providers + other.providers,
@@ -87,6 +91,8 @@ data class RestoreStats(
         todoItems = todoItems + other.todoItems,
         mcpServers = mcpServers + other.mcpServers,
         globalPermissionRules = globalPermissionRules + other.globalPermissionRules,
-        workspaceFiles = workspaceFiles + other.workspaceFiles
+        workspaceFiles = workspaceFiles + other.workspaceFiles,
+        memories = memories + other.memories,
+        favorites = favorites + other.favorites
     )
 }

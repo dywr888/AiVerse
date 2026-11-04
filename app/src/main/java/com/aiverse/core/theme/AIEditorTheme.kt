@@ -2,6 +2,7 @@ package com.aiverse.core.theme
 
 import android.os.Build
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -13,9 +14,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -272,6 +275,110 @@ private val AppTypography = Typography().run {
     )
 }
 
+/** HyperOS 风格开关：当前主题预设是否为 HyperOS。组件据此做条件渲染（大圆角、胶囊开关等）。 */
+val LocalHyperOSStyle = staticCompositionLocalOf { false }
+
+/** 图标彩色开关：true 时设置页图标按图标名取色，false 时统一灰白色。 */
+val LocalIconColorful = staticCompositionLocalOf { true }
+
+/** HyperOS（miuix）风格圆角体系：卡片大圆角，控件中等圆角。 */
+private val HyperOSAppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
+)
+
+/** HyperOS 风格字号层级：明确指定每个槽位的 sp 值，整体比 M3 默认更紧凑。 */
+private val HyperOSAppTypography = Typography().run {
+    copy(
+        headlineMedium = headlineMedium.copy(
+            fontSize = 30.sp,
+            lineHeight = 38.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.sp
+        ),
+        headlineSmall = headlineSmall.copy(
+            fontSize = 24.sp,
+            lineHeight = 32.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.sp
+        ),
+        titleLarge = titleLarge.copy(
+            fontSize = 20.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.sp
+        ),
+        titleMedium = titleMedium.copy(
+            fontSize = 17.sp,
+            lineHeight = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.sp
+        ),
+        titleSmall = titleSmall.copy(
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.sp
+        ),
+        bodyLarge = bodyLarge.copy(fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.sp),
+        bodyMedium = bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = 0.sp),
+        bodySmall = bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.sp),
+        labelLarge = labelLarge.copy(fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
+        labelMedium = labelMedium.copy(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp),
+        labelSmall = labelSmall.copy(fontSize = 11.sp, lineHeight = 15.sp, letterSpacing = 0.sp)
+    )
+}
+
+/**
+ * 按比例缩放整套字号：只改字号与行高，字重与字距保持不变。
+ * 信息密集页面（设置、浏览器）用它整体“缩小一档”，不必逐处改 TextStyle。
+ */
+fun Typography.scaled(factor: Float): Typography = copy(
+    displayLarge = displayLarge.scaledBy(factor),
+    displayMedium = displayMedium.scaledBy(factor),
+    displaySmall = displaySmall.scaledBy(factor),
+    headlineLarge = headlineLarge.scaledBy(factor),
+    headlineMedium = headlineMedium.scaledBy(factor),
+    headlineSmall = headlineSmall.scaledBy(factor),
+    titleLarge = titleLarge.scaledBy(factor),
+    titleMedium = titleMedium.scaledBy(factor),
+    titleSmall = titleSmall.scaledBy(factor),
+    bodyLarge = bodyLarge.scaledBy(factor),
+    bodyMedium = bodyMedium.scaledBy(factor),
+    bodySmall = bodySmall.scaledBy(factor),
+    labelLarge = labelLarge.scaledBy(factor),
+    labelMedium = labelMedium.scaledBy(factor),
+    labelSmall = labelSmall.scaledBy(factor)
+)
+
+private fun TextStyle.scaledBy(factor: Float): TextStyle {
+    val size = fontSize
+    val line = lineHeight
+    return copy(
+        fontSize = if (size == TextUnit.Unspecified) size else (size.value * factor).sp,
+        lineHeight = if (line == TextUnit.Unspecified) line else (line.value * factor).sp
+    )
+}
+
+/** 把子树内的 Material 字体整体缩放一档，颜色与形状保持当前主题不变。 */
+@Composable
+fun CompactTypography(
+    factor: Float = 0.9f,
+    content: @Composable () -> Unit
+) {
+    val base = MaterialTheme.typography
+    val scaled = remember(base, factor) { base.scaled(factor) }
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        typography = scaled,
+        shapes = MaterialTheme.shapes,
+        content = content
+    )
+}
+
 /**
  * @param preset 用户选定的配色主题。
  * @param dynamicColor 是否启用系统莫奈取色；低于 Android 12 时自动回退到 [preset]。
@@ -281,6 +388,8 @@ fun AIEditorTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     preset: AppThemePreset = AppThemePreset.DEFAULT,
     dynamicColor: Boolean = false,
+    iconColorful: Boolean = true,
+    bubbleStyle: ChatBubbleStyle = ChatBubbleStyle.CLASSIC_OUTLINE,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -296,10 +405,20 @@ fun AIEditorTheme(
         }
     }
 
-    CompositionLocalProvider(LocalAppSemanticColors provides themeColors.semanticColors) {
+    val isHyperOS = preset.id == "hyperos"
+    val typography = if (isHyperOS) HyperOSAppTypography else AppTypography
+    val shapes = if (isHyperOS) HyperOSAppShapes else Shapes()
+
+    CompositionLocalProvider(
+        LocalAppSemanticColors provides themeColors.semanticColors,
+        LocalHyperOSStyle provides isHyperOS,
+        LocalIconColorful provides iconColorful,
+        LocalChatBubbleStyle provides bubbleStyle
+    ) {
         MaterialTheme(
             colorScheme = themeColors.colorScheme,
-            typography = AppTypography,
+            typography = typography,
+            shapes = shapes,
             content = content
         )
     }

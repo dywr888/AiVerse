@@ -64,15 +64,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aiverse.core.theme.AppThemePreset
+import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.isDynamicColorSupported
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.ui.AppSwitch
 import com.aiverse.core.ui.AppTextField
 import com.aiverse.core.ui.ListSelectionState
 import com.aiverse.core.ui.SelectionToggleAction
@@ -101,10 +100,10 @@ import com.aiverse.feature.agent.domain.skill.SkillImportError
 import com.aiverse.feature.agent.domain.skill.SkillScope
 import com.aiverse.feature.settings.presentation.SubAgentUiEntry
 import compose.icons.FeatherIcons
-import compose.icons.feathericons.DownloadCloud
 import compose.icons.feathericons.ArrowLeft
 import compose.icons.feathericons.BarChart2
 import compose.icons.feathericons.Book
+import compose.icons.feathericons.Database
 import compose.icons.feathericons.BookOpen
 import compose.icons.feathericons.Box
 import compose.icons.feathericons.Cloud
@@ -130,6 +129,7 @@ import compose.icons.feathericons.Sliders
 import compose.icons.feathericons.Terminal
 import compose.icons.feathericons.Trash2
 import compose.icons.feathericons.Users
+import compose.icons.feathericons.Wifi
 import compose.icons.feathericons.Zap
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
@@ -161,6 +161,7 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Mcp(R.string.settings_mcp),
     Skills(R.string.settings_skills),
     Prompts(R.string.prompts_title),
+    Memory(R.string.settings_memory),
     PromptDetail(R.string.prompts_title),
     PromptEditor(R.string.prompts_title),
     SkillDetail(R.string.settings_skills),
@@ -176,6 +177,7 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     AppPermissions(R.string.settings_app_permissions),
     BackgroundRun(R.string.settings_category_background),
     RemoteServers(R.string.settings_remote_servers),
+    WebServer(R.string.settings_web_server),
     Storage(R.string.settings_storage),
     TokenStats(R.string.settings_token_stats_title),
     Backup(R.string.settings_backup),
@@ -209,6 +211,7 @@ private fun SettingsSection.depth(): Int = when (this) {
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
+    initialSection: String = "",
     onStopAllAndCloseTerminal: () -> Unit = {},
     onRerunOnboarding: () -> Unit = {},
     onboardingStep: OnboardingStep? = null,
@@ -221,8 +224,6 @@ fun SettingsScreen(
     val mcpAuthState by viewModel.mcpAuthState.collectAsStateWithLifecycle()
     val mcpImportState by viewModel.mcpImportState.collectAsStateWithLifecycle()
     val mcpEntries by viewModel.mcpEntries.collectAsStateWithLifecycle()
-    val extensionMarketState by viewModel.extensionMarketState.collectAsStateWithLifecycle()
-    val extensionDownloadState by viewModel.extensionDownloadState.collectAsStateWithLifecycle()
     val mcpStatuses by viewModel.mcpStatuses.collectAsStateWithLifecycle()
     val mcpReloading by viewModel.mcpReloading.collectAsStateWithLifecycle()
     val skills by viewModel.skills.collectAsStateWithLifecycle()
@@ -256,6 +257,8 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val themePresetId by viewModel.themePresetId.collectAsStateWithLifecycle()
     val dynamicColorEnabled by viewModel.dynamicColorEnabled.collectAsStateWithLifecycle()
+    val iconColorEnabled by viewModel.iconColorEnabled.collectAsStateWithLifecycle()
+    val bubbleStyle by viewModel.bubbleStyle.collectAsStateWithLifecycle()
     val backgroundImagePath by viewModel.backgroundImagePath.collectAsStateWithLifecycle()
     val backgroundAlpha by viewModel.backgroundAlpha.collectAsStateWithLifecycle()
     val languageTag by viewModel.languageTag.collectAsStateWithLifecycle()
@@ -304,7 +307,15 @@ fun SettingsScreen(
     }
 
 
-    var section by remember { mutableStateOf(SettingsSection.Menu) }
+    var section by remember {
+        mutableStateOf(
+            when (initialSection) {
+                "providers" -> SettingsSection.Providers
+                "mcp" -> SettingsSection.Mcp
+                else -> SettingsSection.Menu
+            }
+        )
+    }
     var logReturnSection by remember { mutableStateOf(SettingsSection.Menu) }
     // 各列表页的多选状态：顶栏「多选」开关在本页 Scaffold 里，所以状态必须提到这里统一持有。
     // 用普通 map（非 snapshot）新建容器，避免在组合期写快照状态；Compose 状态在 ListSelectionState 内部。
@@ -318,17 +329,8 @@ fun SettingsScreen(
     var editingMcp by remember { mutableStateOf<McpServerEntry?>(null) }
     var showMcpAddSheet by remember { mutableStateOf(false) }
     var showMcpJsonImport by remember { mutableStateOf(false) }
-    var showExtensionMarket by remember { mutableStateOf(false) }
 
     // 从「允许安装未知应用」设置页返回后：已授权则直接安装已下载的扩展 APK
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onExtensionPermissionReturn()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
     var mcpAddScope by remember { mutableStateOf(McpScope.PROJECT) }
 
     LaunchedEffect(onboardingStep) {
@@ -422,6 +424,7 @@ fun SettingsScreen(
     var showImageSourceSheet by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
     var showBackgroundSheet by remember { mutableStateOf(false) }
+    var showBubbleStyleSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
     var showResetTokenStats by remember { mutableStateOf(false) }
 
@@ -510,6 +513,8 @@ fun SettingsScreen(
             onOpenThemeSheet = { showThemeSheet = true },
             onOpenTerminalSettingsSheet = { showTerminalSettingsSheet = true },
             onOpenBackgroundSheet = { showBackgroundSheet = true },
+            bubbleStyle = bubbleStyle,
+            onOpenBubbleStyleSheet = { showBubbleStyleSheet = true },
             onOpenLanguageSheet = { showLanguageSheet = true },
             onOpenManual = {
                 context.startActivity(
@@ -746,17 +751,6 @@ fun SettingsScreen(
                                 Icon(
                                     FeatherIcons.Plus,
                                     contentDescription = stringResource(R.string.settings_add_mcp_server),
-                                    tint = MaterialTheme.colorScheme.onBackground,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            IconButton(onClick = {
-                                showExtensionMarket = true
-                                viewModel.fetchExtensions()
-                            }) {
-                                Icon(
-                                    FeatherIcons.DownloadCloud,
-                                    contentDescription = stringResource(R.string.extension_market_title),
                                     tint = MaterialTheme.colorScheme.onBackground,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -1240,12 +1234,20 @@ fun SettingsScreen(
                     onSelectFilterModel = { viewModel.setFilterModel(it) },
                     onClearFilters = { viewModel.clearTokenStatsFilters() }
                 )
+                SettingsSection.WebServer -> WebServerSettingsSection(
+                    androidx.hilt.navigation.compose.hiltViewModel()
+                )
                 SettingsSection.Storage -> storageViewModel?.let { StorageSectionHost(viewModel = it) }
                 SettingsSection.ProviderEditor -> {} // 已在上方 early return 处理
                 SettingsSection.SkillEditor -> {} // 已在上方 early return 处理
                 SettingsSection.SubAgentEditor -> {} // 已在上方 early return 处理
                 SettingsSection.RemoteServers -> {} // 已在上方 early return 处理
                 SettingsSection.Backup -> {} // 已在上方 early return 处理
+                SettingsSection.Memory -> {
+                    val memoryViewModel: com.aiverse.feature.settings.presentation.MemoryViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    MemorySection(viewModel = memoryViewModel)
+                }
                 SettingsSection.About -> AboutSection(
                     updateCheckEnabled = updateCheckEnabled,
                     updateCheckChannel = updateCheckChannel,
@@ -1282,19 +1284,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showExtensionMarket) {
-        ExtensionMarketSheet(
-            marketState = extensionMarketState,
-            downloadState = extensionDownloadState,
-            onRefresh = { viewModel.fetchExtensions() },
-            onInstall = { item -> viewModel.installExtension(item) },
-            onOpenPermission = { viewModel.openExtensionInstallPermissionSettings() },
-            onDismiss = {
-                showExtensionMarket = false
-                viewModel.clearExtensionDownloadState()
-            }
-        )
-    }
 
     if (showMcpJsonImport) {
         LaunchedEffect(mcpImportState.importedCount) {
@@ -1408,9 +1397,11 @@ fun SettingsScreen(
             selected = themeMode,
             selectedPresetId = themePresetId,
             dynamicColorEnabled = dynamicColorEnabled,
+            iconColorEnabled = iconColorEnabled,
             onSelected = { viewModel.setThemeMode(it) },
             onPresetSelected = { viewModel.setThemePreset(it) },
             onDynamicColorChanged = { viewModel.setDynamicColorEnabled(it) },
+            onIconColorChanged = { viewModel.setIconColorEnabled(it) },
             onDismiss = { showThemeSheet = false }
         )
     }
@@ -1434,6 +1425,14 @@ fun SettingsScreen(
             onAlphaChange = { viewModel.setBackgroundAlpha(it) },
             onRemove = { viewModel.clearBackgroundImage() },
             onDismiss = { showBackgroundSheet = false }
+        )
+    }
+
+    if (showBubbleStyleSheet) {
+        ChatBubbleStyleSheet(
+            selected = bubbleStyle,
+            onSelect = { viewModel.setBubbleStyle(it) },
+            onDismiss = { showBubbleStyleSheet = false }
         )
     }
 
@@ -1701,6 +1700,8 @@ internal fun SettingsMenu(
     onOpenThemeSheet: () -> Unit,
     onOpenTerminalSettingsSheet: () -> Unit,
     onOpenBackgroundSheet: () -> Unit,
+    bubbleStyle: ChatBubbleStyle,
+    onOpenBubbleStyleSheet: () -> Unit,
     onOpenLanguageSheet: () -> Unit,
     onOpenManual: () -> Unit,
     onRerunOnboarding: () -> Unit,
@@ -1769,6 +1770,13 @@ internal fun SettingsMenu(
             )
             SettingsDivider()
             SettingsRow(
+                icon = FeatherIcons.MessageSquare,
+                title = stringResource(R.string.settings_chat_bubble),
+                subtitle = stringResource(bubbleStyle.labelRes),
+                onClick = onOpenBubbleStyleSheet
+            )
+            SettingsDivider()
+            SettingsRow(
                 icon = FeatherIcons.Globe,
                 title = stringResource(R.string.settings_language),
                 onClick = onOpenLanguageSheet,
@@ -1821,6 +1829,12 @@ internal fun SettingsMenu(
                 title = stringResource(SettingsSection.Prompts.titleRes),
                 onClick = { onOpen(SettingsSection.Prompts) }
             )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Database,
+                title = stringResource(SettingsSection.Memory.titleRes),
+                onClick = { onOpen(SettingsSection.Memory) }
+            )
         }
 
         // ── 运行环境 ──
@@ -1842,6 +1856,12 @@ internal fun SettingsMenu(
                 icon = FeatherIcons.Server,
                 title = stringResource(SettingsSection.RemoteServers.titleRes),
                 onClick = { onOpen(SettingsSection.RemoteServers) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Wifi,
+                title = stringResource(SettingsSection.WebServer.titleRes),
+                onClick = { onOpen(SettingsSection.WebServer) }
             )
         }
 

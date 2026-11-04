@@ -452,6 +452,16 @@ dependencies {
     // Core Android（1.17.0 起提供 NotificationCompat 的实时通知推广接口 setRequestPromotedOngoing）
     implementation("androidx.core:core:1.17.0")
 
+    // Web 服务器（网页端）：Ktor CIO，端口 7676，托管 web-ui 静态资源 + REST/SSE API
+    implementation("io.ktor:ktor-server-core:3.5.2")
+    implementation("io.ktor:ktor-server-cio:3.5.2")
+    implementation("io.ktor:ktor-server-content-negotiation:3.5.2")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.2")
+    implementation("io.ktor:ktor-server-compression:3.5.2")
+    implementation("io.ktor:ktor-server-cors:3.5.2")
+    implementation("io.ktor:ktor-server-default-headers:3.5.2")
+    implementation("io.ktor:ktor-server-sse:3.5.2")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     // 迁移测试：MigrationTestHelper + Robolectric（在 JVM 上跑 Room 迁移，需真实 resources）

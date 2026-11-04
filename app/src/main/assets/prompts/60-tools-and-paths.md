@@ -43,6 +43,11 @@
 - 文件工具也可按权限读写执行环境中的系统文件，用绝对路径（如 `/etc/...`）。本地文件内容访问会解析符号链接：绝对目标按容器路径映射，相对目标以链接所在目录为基准；删除、重命名和移动链接本身不操作其目标，循环链接会报错。
 - AI 配置目录为 `~/.aiverse`；工具完整输出日志在 `~/.aiverse/tool-output/...`。
 
+## Git 认证与凭证
+- GitHub 等需要认证的 git 操作，凭证由自定义 helper 提供：全局 git 配置在 `~/.aiverse/.gitconfig`（环境变量 `GIT_CONFIG_GLOBAL` 指向它），其中 `includeIf gitdir:/root/workspace/` 仅在**工作区仓库**内加载 `~/.aiverse/gitconfig.credential`（配置 `credential.helper = ~/.aiverse/git-credential-aiverse`），helper 从 `~/.aiverse/git-credentials`（base64）读取 token。
+- **需要认证的 git 操作必须在 `~/workspace`（工作区仓库）目录内执行**；克隆/操作到其它路径（如 `/tmp`）不会加载凭证 helper，会报 `fatal: could not read Username for 'https://github.com'` 认证失败。
+- 不要为单独推送而克隆到工作区外；当前仓库异常时应先修复工作区仓库，而非另起克隆。
+
 ## 子代理
 - 有匹配的子代理且任务能独立拆分、派发收益大于沟通成本时，主动用 `task` 分发部分工作，如代码库探索、调研、批量定位或验证，避免主代理默认包办。支持单任务创建或通过 `tasks` 数组批量派发多个子代理；简单、紧密耦合或依赖主线即时结果的工作自行完成，不把所有任务都交给子代理。通常开 1–2 个，最多同时运行 5 个。
 - 子代理拥有独立上下文，不自动共享主对话历史。派发时提供目标与完成标准、已知结论和必要路径、用户约束、不可改动的边界及期望产出；划清文件或模块边界，避免与主线及其他子代理重复探索、同时修改同一内容。

@@ -2,6 +2,7 @@ package com.aiverse.feature.settings.data.repository
 
 import android.content.Context
 import com.aiverse.R
+import com.aiverse.core.theme.ChatBubbleStyle
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -39,6 +40,8 @@ class ThemeSettingsRepository @Inject constructor(
         val DARK_THEME_KEY = booleanPreferencesKey("dark_theme_enabled")
         val THEME_PRESET_KEY = stringPreferencesKey("theme_preset_id")
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color_enabled")
+        val ICON_COLOR_KEY = booleanPreferencesKey("icon_colorful_enabled")
+        val CHAT_BUBBLE_STYLE_KEY = stringPreferencesKey("chat_bubble_style")
     }
 
     val themeModeFlow: Flow<AppThemeMode> = context.themeDataStore.data.map { prefs ->
@@ -54,6 +57,14 @@ class ThemeSettingsRepository @Inject constructor(
     val dynamicColorFlow: Flow<Boolean> =
         context.themeDataStore.data.map { it[DYNAMIC_COLOR_KEY] == true }
 
+    /** 图标是否用彩色（按图标名取色）；false 时统一用 onSurface 灰白色。默认彩色。 */
+    val iconColorFlow: Flow<Boolean> =
+        context.themeDataStore.data.map { it[ICON_COLOR_KEY] != false }
+
+    /** 聊天气泡样式（用户消息气泡）。 */
+    val bubbleStyleFlow: Flow<ChatBubbleStyle> =
+        context.themeDataStore.data.map { ChatBubbleStyle.fromId(it[CHAT_BUBBLE_STYLE_KEY]) }
+
     suspend fun setThemeMode(mode: AppThemeMode) {
         context.themeDataStore.edit { it[THEME_MODE_KEY] = mode.name }
     }
@@ -64,6 +75,14 @@ class ThemeSettingsRepository @Inject constructor(
 
     suspend fun setDynamicColorEnabled(enabled: Boolean) {
         context.themeDataStore.edit { it[DYNAMIC_COLOR_KEY] = enabled }
+    }
+
+    suspend fun setIconColorEnabled(enabled: Boolean) {
+        context.themeDataStore.edit { it[ICON_COLOR_KEY] = enabled }
+    }
+
+    suspend fun setBubbleStyle(style: ChatBubbleStyle) {
+        context.themeDataStore.edit { it[CHAT_BUBBLE_STYLE_KEY] = style.id }
     }
 
     /** 备份快照：返回当前持久化的主题模式名（未设置时为 null，导入时回退默认）。 */

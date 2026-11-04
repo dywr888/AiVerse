@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import com.aiverse.R
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.theme.LocalHyperOSStyle
+import com.aiverse.core.theme.LocalIconColorful
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.Search
@@ -116,9 +118,10 @@ internal fun SettingsGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val hyperOS = LocalHyperOSStyle.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(if (hyperOS) 22.dp else 14.dp),
         color = MaterialTheme.semanticColors.cardSurface,
         shadowElevation = 0.dp
     ) {
@@ -157,6 +160,49 @@ internal fun LazyGroupItem(
 }
 
 /**
+ * HyperOS 风格彩色图标取色表：同一图标在所有页面用同一个色，不随主题预设漂移。
+ */
+private val SettingsIconTints: Map<String, Color> = mapOf(
+    "Cloud" to Color(0xFF3482FF),
+    "Server" to Color(0xFF00A3A3),
+    "HardDrive" to Color(0xFF00A3A3),
+    "Wifi" to Color(0xFF00A3A3),
+    "Cpu" to Color(0xFF3482FF),
+    "Sliders" to Color(0xFF3482FF),
+    "Settings" to Color(0xFF3482FF),
+    "Layers" to Color(0xFF3482FF),
+    "Book" to Color(0xFFFF8A00),
+    "BookOpen" to Color(0xFFFF8A00),
+    "FileText" to Color(0xFF5B8DEF),
+    "Database" to Color(0xFF5B8DEF),
+    "MessageSquare" to Color(0xFF00C2A8),
+    "Users" to Color(0xFFFF8A00),
+    "Shield" to Color(0xFF00B34A),
+    "Lock" to Color(0xFF00B34A),
+    "Globe" to Color(0xFF3482FF),
+    "Terminal" to Color(0xFF00B34A),
+    "Zap" to Color(0xFFFFB020),
+    "Moon" to Color(0xFF6B5BD6),
+    "Image" to Color(0xFFFF8A00),
+    "Download" to Color(0xFF3482FF),
+    "BarChart2" to Color(0xFF3482FF),
+    "PieChart" to Color(0xFF3482FF),
+    "Edit2" to Color(0xFF3482FF),
+    "Trash2" to Color(0xFFE54545),
+    "Info" to Color(0xFF3482FF),
+    "RefreshCw" to Color(0xFF8A8A8E),
+    "RotateCcw" to Color(0xFF8A8A8E),
+    "Save" to Color(0xFF3482FF),
+    "Box" to Color(0xFF8B5CF6),
+    "GitBranch" to Color(0xFFFF8A00),
+    "Brain" to Color(0xFF6B5BD6)
+)
+
+/** 按图标名取色，未登记的图标统一用主色蓝。 */
+internal fun settingsIconTint(icon: ImageVector): Color =
+    SettingsIconTints[icon.name.substringAfterLast('.')] ?: Color(0xFF3482FF)
+
+/**
  * 分组内单行：左侧线条图标 + 标题，右侧可选尾随组件（右箭头/开关/值）。
  *
  * @param icon 左侧图标，null 则标题与无图标行对齐。
@@ -185,7 +231,7 @@ internal fun SettingsRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = if (LocalIconColorful.current) settingsIconTint(icon) else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(Spacing.md))

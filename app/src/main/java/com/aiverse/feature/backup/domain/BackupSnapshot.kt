@@ -47,7 +47,9 @@ data class BackupSnapshot(
     val visionModel: String = "",
     val compactionProviderId: String = "",
     val compactionModel: String = "",
-    val syncSettings: SyncSettingsSnapshot? = null
+    val syncSettings: SyncSettingsSnapshot? = null,
+    val memories: List<MemoryDto> = emptyList(),
+    val favorites: List<FavoriteItemDto> = emptyList()
 )
 
 /**
@@ -88,6 +90,8 @@ data class BackupMetadata(
     val compactionModel: String = "",
     val syncSettings: SyncSettingsSnapshot? = null,
     val workspaces: List<WorkspaceBackupMeta> = emptyList(),
+    val memories: List<MemoryDto> = emptyList(),
+    val favorites: List<FavoriteItemDto> = emptyList(),
     val includesAppSettings: Boolean = themeMode != null
 )
 
@@ -129,7 +133,9 @@ fun BackupSnapshot.toMetadata() = BackupMetadata(
     visionModel = visionModel,
     compactionProviderId = compactionProviderId,
     compactionModel = compactionModel,
-    syncSettings = syncSettings
+    syncSettings = syncSettings,
+    memories = memories,
+    favorites = favorites
 )
 
 @Serializable
@@ -246,4 +252,25 @@ data class TodoItemDto(
     val order: Int = 0,
     val createdAt: Long,
     val updatedAt: Long
+)
+
+/** 备份中的一条记忆（全局或项目级）。 */
+@Serializable
+data class MemoryDto(
+    val name: String,
+    val description: String = "",
+    val content: String,
+    /** "GLOBAL" 或 "PROJECT"。 */
+    val scope: String,
+    /** 项目级记忆归属的工作区路径；全局记忆为空。 */
+    val projectRoot: String = ""
+)
+
+/** 备份中的一条收藏消息。 */
+@Serializable
+data class FavoriteItemDto(
+    val id: String,
+    val content: String,
+    val sessionTitle: String = "",
+    val createdAt: Long
 )

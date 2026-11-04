@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.theme.LocalHyperOSStyle
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -85,6 +86,7 @@ fun FloatingTabBar(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val hyperOS = LocalHyperOSStyle.current
 
     val contentAlpha by animateFloatAsState(
         targetValue = if (isScrolling) 0.35f else 1f,
@@ -102,38 +104,59 @@ fun FloatingTabBar(
     val pageBackgroundColor = MaterialTheme.semanticColors.pageBackground
 
     // 材质与描边画笔
-    val glassBackgroundBrush = remember(isLight, surfaceColor, surfaceVariantColor, cardSurfaceColor, mutedSurfaceColor) {
-        if (isLight) {
-            Brush.verticalGradient(
-                listOf(cardSurfaceColor.copy(alpha = 0.94f), mutedSurfaceColor.copy(alpha = 0.90f))
-            )
+    val glassBackgroundBrush = remember(isLight, surfaceColor, surfaceVariantColor, cardSurfaceColor, mutedSurfaceColor, hyperOS) {
+        if (hyperOS) {
+            if (isLight) {
+                Brush.verticalGradient(listOf(cardSurfaceColor, cardSurfaceColor))
+            } else {
+                Brush.verticalGradient(listOf(surfaceVariantColor, surfaceColor))
+            }
         } else {
-            Brush.verticalGradient(
-                listOf(
-                    surfaceVariantColor.copy(alpha = 0.92f),
-                    surfaceColor.copy(alpha = 0.88f)
+            if (isLight) {
+                Brush.verticalGradient(
+                    listOf(cardSurfaceColor.copy(alpha = 0.94f), mutedSurfaceColor.copy(alpha = 0.90f))
                 )
-            )
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        surfaceVariantColor.copy(alpha = 0.92f),
+                        surfaceColor.copy(alpha = 0.88f)
+                    )
+                )
+            }
         }
     }
 
-    val glassBorderBrush = remember(isLight, outlineVariantColor, pageBackgroundColor) {
-        if (isLight) {
-            Brush.verticalGradient(
-                listOf(
-                    Color.Black.copy(alpha = 0.12f),
-                    Color.Black.copy(alpha = 0.06f),
-                    Color.Black.copy(alpha = 0.14f)
+    val glassBorderBrush = remember(isLight, outlineVariantColor, pageBackgroundColor, hyperOS) {
+        if (hyperOS) {
+            if (isLight) {
+                Brush.verticalGradient(listOf(outlineVariantColor, outlineVariantColor))
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        outlineVariantColor.copy(alpha = 0.8f),
+                        outlineVariantColor.copy(alpha = 0.5f)
+                    )
                 )
-            )
+            }
         } else {
-            Brush.verticalGradient(
-                listOf(
-                    outlineVariantColor.copy(alpha = 0.55f),
-                    outlineVariantColor.copy(alpha = 0.20f),
-                    pageBackgroundColor.copy(alpha = 0.60f)
+            if (isLight) {
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.12f),
+                        Color.Black.copy(alpha = 0.06f),
+                        Color.Black.copy(alpha = 0.14f)
+                    )
                 )
-            )
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        outlineVariantColor.copy(alpha = 0.55f),
+                        outlineVariantColor.copy(alpha = 0.20f),
+                        pageBackgroundColor.copy(alpha = 0.60f)
+                    )
+                )
+            }
         }
     }
 
@@ -179,10 +202,18 @@ fun FloatingTabBar(
                 .padding(bottom = 6.dp)
                 .graphicsLayer { alpha = contentAlpha }
                 .shadow(
-                    elevation = 8.dp,
+                    elevation = if (hyperOS) 3.dp else 8.dp,
                     shape = RoundedCornerShape(Radius.pill),
-                    ambientColor = if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF040A14).copy(alpha = 0.35f),
-                    spotColor = if (isLight) Color.Black.copy(alpha = 0.14f) else Color(0xFF040A14).copy(alpha = 0.50f)
+                    ambientColor = if (hyperOS) {
+                        if (isLight) Color.Black.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.30f)
+                    } else {
+                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF040A14).copy(alpha = 0.35f)
+                    },
+                    spotColor = if (hyperOS) {
+                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.45f)
+                    } else {
+                        if (isLight) Color.Black.copy(alpha = 0.14f) else Color(0xFF040A14).copy(alpha = 0.50f)
+                    }
                 )
                 .clip(RoundedCornerShape(Radius.pill))
                 .background(glassBackgroundBrush)
@@ -376,6 +407,7 @@ fun FloatingTabBar(
     )
 
     val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val hyperOS = LocalHyperOSStyle.current
     val colorScheme = MaterialTheme.colorScheme
     val surfaceColor = colorScheme.surface
     val surfaceVariantColor = colorScheme.surfaceVariant
@@ -385,38 +417,59 @@ fun FloatingTabBar(
     val mutedSurfaceColor = MaterialTheme.semanticColors.mutedSurface
     val pageBackgroundColor = MaterialTheme.semanticColors.pageBackground
 
-    val glassBackgroundBrush = remember(isLight, surfaceColor, surfaceVariantColor, cardSurfaceColor, mutedSurfaceColor) {
-        if (isLight) {
-            Brush.verticalGradient(
-                listOf(cardSurfaceColor.copy(alpha = 0.94f), mutedSurfaceColor.copy(alpha = 0.90f))
-            )
+    val glassBackgroundBrush = remember(isLight, surfaceColor, surfaceVariantColor, cardSurfaceColor, mutedSurfaceColor, hyperOS) {
+        if (hyperOS) {
+            if (isLight) {
+                Brush.verticalGradient(listOf(cardSurfaceColor, cardSurfaceColor))
+            } else {
+                Brush.verticalGradient(listOf(surfaceVariantColor, surfaceColor))
+            }
         } else {
-            Brush.verticalGradient(
-                listOf(
-                    surfaceVariantColor.copy(alpha = 0.92f),
-                    surfaceColor.copy(alpha = 0.88f)
+            if (isLight) {
+                Brush.verticalGradient(
+                    listOf(cardSurfaceColor.copy(alpha = 0.94f), mutedSurfaceColor.copy(alpha = 0.90f))
                 )
-            )
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        surfaceVariantColor.copy(alpha = 0.92f),
+                        surfaceColor.copy(alpha = 0.88f)
+                    )
+                )
+            }
         }
     }
 
-    val glassBorderBrush = remember(isLight, outlineVariantColor, pageBackgroundColor) {
-        if (isLight) {
-            Brush.verticalGradient(
-                listOf(
-                    Color.Black.copy(alpha = 0.12f),
-                    Color.Black.copy(alpha = 0.06f),
-                    Color.Black.copy(alpha = 0.14f)
+    val glassBorderBrush = remember(isLight, outlineVariantColor, pageBackgroundColor, hyperOS) {
+        if (hyperOS) {
+            if (isLight) {
+                Brush.verticalGradient(listOf(outlineVariantColor, outlineVariantColor))
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        outlineVariantColor.copy(alpha = 0.8f),
+                        outlineVariantColor.copy(alpha = 0.5f)
+                    )
                 )
-            )
+            }
         } else {
-            Brush.verticalGradient(
-                listOf(
-                    outlineVariantColor.copy(alpha = 0.55f),
-                    outlineVariantColor.copy(alpha = 0.20f),
-                    pageBackgroundColor.copy(alpha = 0.60f)
+            if (isLight) {
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.12f),
+                        Color.Black.copy(alpha = 0.06f),
+                        Color.Black.copy(alpha = 0.14f)
+                    )
                 )
-            )
+            } else {
+                Brush.verticalGradient(
+                    listOf(
+                        outlineVariantColor.copy(alpha = 0.55f),
+                        outlineVariantColor.copy(alpha = 0.20f),
+                        pageBackgroundColor.copy(alpha = 0.60f)
+                    )
+                )
+            }
         }
     }
 
@@ -463,10 +516,18 @@ fun FloatingTabBar(
                 .padding(bottom = 6.dp)
                 .graphicsLayer { alpha = contentAlpha }
                 .shadow(
-                    elevation = 8.dp,
+                    elevation = if (hyperOS) 3.dp else 8.dp,
                     shape = RoundedCornerShape(Radius.pill),
-                    ambientColor = if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF040A14).copy(alpha = 0.35f),
-                    spotColor = if (isLight) Color.Black.copy(alpha = 0.14f) else Color(0xFF040A14).copy(alpha = 0.50f)
+                    ambientColor = if (hyperOS) {
+                        if (isLight) Color.Black.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.30f)
+                    } else {
+                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF040A14).copy(alpha = 0.35f)
+                    },
+                    spotColor = if (hyperOS) {
+                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.45f)
+                    } else {
+                        if (isLight) Color.Black.copy(alpha = 0.14f) else Color(0xFF040A14).copy(alpha = 0.50f)
+                    }
                 )
                 .clip(RoundedCornerShape(Radius.pill))
                 .background(glassBackgroundBrush)

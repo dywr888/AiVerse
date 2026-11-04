@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.aiverse.core.theme.LocalHyperOSStyle
 
 /**
  * 全局统一的精致紧凑型开关组件：
@@ -43,12 +44,13 @@ fun AppSwitch(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
     val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val hyperOS = LocalHyperOSStyle.current
 
     // 轨道颜色
     val targetTrackColor = when {
         checked -> MaterialTheme.colorScheme.primary
-        isLight -> Color(0xFFE2E8F0)
-        else -> Color(0xFF334155)
+        isLight -> if (hyperOS) Color(0xFFE6E6E9) else Color(0xFFE2E8F0)
+        else -> if (hyperOS) Color(0xFF3A3A3E) else Color(0xFF334155)
     }
     val animatedTrackColor by animateColorAsState(
         targetValue = targetTrackColor,
@@ -59,9 +61,9 @@ fun AppSwitch(
     // 滑块颜色
     val thumbColor = if (isLight) Color.White else Color(0xFFF8FAFC)
 
-    // 滑块位移（轨道宽 42dp，内边距 2dp，滑块 20dp，位移范围 2dp -> 20dp）
+    // 滑块位移
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 20.dp else 2.dp,
+        targetValue = if (checked) (if (hyperOS) 22.dp else 20.dp) else 2.dp,
         animationSpec = spring(
             dampingRatio = 0.8f,
             stiffness = Spring.StiffnessMediumLow
@@ -86,16 +88,16 @@ fun AppSwitch(
         modifier = modifier
             .alpha(if (enabled) 1f else 0.4f)
             .then(toggleModifier)
-            .size(width = 42.dp, height = 24.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .size(width = if (hyperOS) 50.dp else 42.dp, height = if (hyperOS) 30.dp else 24.dp)
+            .clip(RoundedCornerShape(if (hyperOS) 15.dp else 12.dp))
             .background(animatedTrackColor),
         contentAlignment = Alignment.CenterStart
     ) {
         Box(
             modifier = Modifier
                 .offset(x = thumbOffset)
-                .size(20.dp)
-                .shadow(elevation = 2.dp, shape = CircleShape)
+                .size(if (hyperOS) 26.dp else 20.dp)
+                .shadow(elevation = if (hyperOS) 1.dp else 2.dp, shape = CircleShape)
                 .background(thumbColor, CircleShape)
         )
     }

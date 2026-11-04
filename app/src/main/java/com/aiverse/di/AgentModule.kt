@@ -47,6 +47,7 @@ import com.aiverse.feature.agent.domain.tool.remote.SshReadTool
 import com.aiverse.feature.agent.domain.tool.remote.SshRmTool
 import com.aiverse.feature.agent.domain.tool.remote.SshTailTool
 import com.aiverse.feature.agent.domain.tool.remote.SshUploadTool
+import com.aiverse.feature.agent.domain.tool.review.ReviewTool
 import com.aiverse.feature.agent.domain.tool.shizuku.ShizukuTool
 import com.aiverse.feature.agent.domain.tool.skill.LoadSkillTool
 import com.aiverse.feature.agent.domain.tool.question.AskUserQuestionTool
@@ -392,7 +393,8 @@ object AgentModule {
         memoryTool: MemoryTool,
         taskTool: TaskTool,
         messageParentTool: MessageParentTool,
-        browserTool: BrowserTool
+        browserTool: BrowserTool,
+        reviewTool: ReviewTool
     ): ToolRegistry {
         return ToolRegistry().apply {
             register("readFile", readFileTool)
@@ -426,6 +428,7 @@ object AgentModule {
             register("task", taskTool)
             register("messageParent", messageParentTool)
             register("browser", browserTool)
+            register("review", reviewTool)
         }
     }
 

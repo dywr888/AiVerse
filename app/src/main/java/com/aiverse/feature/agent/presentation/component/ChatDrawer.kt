@@ -110,6 +110,7 @@ import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ExpandableChevronIcon
 import com.aiverse.core.ui.containerOsLogo
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.Bookmark
 import compose.icons.feathericons.ChevronDown
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.CheckSquare
@@ -175,6 +176,7 @@ fun ChatDrawerContent(
     onCancelPasteOverwrite: () -> Unit,
     onClearClipboard: () -> Unit,
     onNavigateToBrowser: (() -> Unit)? = null,
+    onOpenFavorites: (() -> Unit)? = null,
     onNavigateToSettings: () -> Unit,
     searchQuery: String,
     searchState: ChatSearchState,
@@ -369,6 +371,14 @@ fun ChatDrawerContent(
         }
 
         SettingsGroup {
+            if (onOpenFavorites != null) {
+                SettingsRow(
+                    icon = FeatherIcons.Bookmark,
+                    title = stringResource(R.string.favorites_title),
+                    onClick = onOpenFavorites
+                )
+                SettingsDivider()
+            }
             if (onNavigateToBrowser != null) {
                 SettingsRow(
                     icon = FeatherIcons.Globe,
