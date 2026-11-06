@@ -9,5 +9,5 @@ interface IShizukuShellService {
     // unbindUserService(remove=true) 时触发，实现里应结束进程。不可改动。
     void destroy() = 16777114;
 
-    Bundle exec(String command, int timeoutMs) = 1;
+    Bundle exec(String command, int timeoutMs, int maxOutputChars) = 1;
 }

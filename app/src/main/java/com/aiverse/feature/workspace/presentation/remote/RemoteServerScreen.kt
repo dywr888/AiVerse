@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -37,6 +38,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,8 +47,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -56,6 +60,7 @@ import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.ui.FloatingTabBar
 import com.aiverse.core.ui.FloatingTabItem
+import com.aiverse.feature.agent.presentation.component.MarkdownContent
 import com.aiverse.feature.settings.presentation.component.SettingsDivider
 import com.aiverse.feature.settings.presentation.component.SettingsGroup
 import com.aiverse.feature.settings.presentation.component.settingsPageBackground
@@ -65,6 +70,7 @@ import com.aiverse.R
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ArrowLeft
 import compose.icons.feathericons.Folder
+import compose.icons.feathericons.HelpCircle
 import compose.icons.feathericons.Key
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.Server
@@ -89,6 +95,7 @@ fun RemoteServerScreen(
     var showAddMountDialog by remember { mutableStateOf(false) }
     var showHostKeysScreen by remember { mutableStateOf(false) }
     var showSyncSettingsSheet by remember { mutableStateOf(false) }
+    var showSshHelpSheet by remember { mutableStateOf(false) }
 
     // 列表滚动状态提升到页面层：滚动时底部 tab 栏淡出（同 Git 页面）。
     // 连接列表是每行独立卡片（LazyColumn），挂载/FTP 仍是分组卡片（普通滚动容器）。
@@ -112,6 +119,15 @@ fun RemoteServerScreen(
 
     val syncUseGitIgnore by viewModel.syncUseGitIgnore.collectAsStateWithLifecycle()
     val maxSyncBatchSize by viewModel.maxSyncBatchSize.collectAsStateWithLifecycle()
+    val sshGuideSeen by viewModel.sshGuideSeen.collectAsStateWithLifecycle()
+
+    // 首次进入连接与同步页自动展示 SSH 指南；看过一次后不再自动弹出（可手动点 ? 重新打开）。
+    LaunchedEffect(Unit) {
+        if (!sshGuideSeen) {
+            showSshHelpSheet = true
+            viewModel.markSshGuideSeen()
+        }
+    }
 
     Scaffold(
         containerColor = settingsPageBackground(),
@@ -129,6 +145,9 @@ fun RemoteServerScreen(
                 },
                 actions = {
                     if (pagerState.currentPage == 0) {
+                        IconButton(onClick = { showSshHelpSheet = true }) {
+                            Icon(FeatherIcons.HelpCircle, contentDescription = stringResource(R.string.ssh_help_title))
+                        }
                         IconButton(onClick = { showHostKeysScreen = true }) {
                             Icon(FeatherIcons.Key, contentDescription = stringResource(R.string.ssh_host_key_settings_title))
                         }
@@ -317,6 +336,10 @@ fun RemoteServerScreen(
         return
     }
 
+    if (showSshHelpSheet) {
+        SshHelpSheet(onDismiss = { showSshHelpSheet = false })
+    }
+
     if (showSyncSettingsSheet) {
         SyncSettingsSheet(
             useGitIgnore = syncUseGitIgnore,
@@ -479,4 +502,33 @@ private fun SettingsList(
     ) {
         SettingsGroup(content = content)
     }
+}
+
+/** SSH 使用指南弹窗（居中 AlertDialog，顶栏帮助图标打开；首次进入自动显示）：以 Markdown 渲染引导正文。 */
+@Composable
+private fun SshHelpSheet(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.ssh_help_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            MarkdownContent(
+                text = stringResource(R.string.ssh_help_content),
+                color = MaterialTheme.colorScheme.onSurface,
+                lazyScroll = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.5f)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_got_it))
+            }
+        }
+    )
 }

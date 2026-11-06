@@ -1,6 +1,7 @@
 package com.aiverse.feature.agent.domain.permission
 
 import android.content.Context
+import android.provider.Settings
 import com.aiverse.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aiverse.feature.agent.domain.tool.AgentTool
@@ -34,12 +35,15 @@ class ToolPermissionPolicyEngine @Inject constructor(
     private val fileWhitelistPolicy: FileWhitelistPolicy,
     @param:ApplicationContext private val appContext: Context
 ) {
-    private companion object {
+    companion object {
         /** 以 `command` 参数承载 shell 命令、按命令前缀做指令级匹配的工具。 */
         val SHELL_TOOLS = setOf("Bash", SHIZUKU_TOOL)
 
         /** Shizuku 工具：以 adb shell 身份直接操作宿主 Android 系统，按高危处理（一律弹窗、不可记忆）。 */
         const val SHIZUKU_TOOL = "Shizuku"
+
+        /** Shizuku 控制手机工具：打开应用/截屏/模拟点击，属超高危险指令，无论任何免授权开关一律强制逐次确认。 */
+        const val SHIZUKU_CONTROL_TOOL = "ShizukuControl"
 
         /**
          * 合并后的终端会话工具：其 `start` 动作承载 shell 命令，需走指令级前缀匹配；
@@ -139,6 +143,23 @@ class ToolPermissionPolicyEngine @Inject constructor(
 
         // 「一键允许所有工具」（全局）开启后默认放行，不再逐次索要确认。
         // 安全底线仍保留：灾难性 rm（根目录/系统目录删除）与 Shizuku 宿主系统操作仍拦截。
+        // Shizuku 控制手机属超高危险指令：即使开启一键允许/禁用安全拦截，仍强制逐次确认且不可记忆。
+        // 确认走悬浮窗口（其他页面也可确认），故需悬浮窗权限；未授予时无法确认，直接拒绝并说明原因。
+        if (toolName == SHIZUKU_CONTROL_TOOL) {
+            if (!Settings.canDrawOverlays(appContext)) {
+                return EvalResult(
+                    Verdict.DENY,
+                    emptyList(),
+                    denyReason = appContext.getString(R.string.tool_shizuku_overlay_permission_reason)
+                )
+            }
+            return EvalResult(
+                Verdict.ASK,
+                emptyList(),
+                rememberDisabledReason = appContext.getString(R.string.tool_shizuku_confirmation_reason)
+            )
+        }
+
         if (toolSafetySettings.isGlobalAutoApprove()) {
             if (isShellTool(toolName, args)) {
                 val command = ((args["command"] ?: args["input"]) as? JsonPrimitive)?.content

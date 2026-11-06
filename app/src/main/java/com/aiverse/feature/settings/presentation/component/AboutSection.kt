@@ -60,6 +60,7 @@ import compose.icons.feathericons.Check
 import compose.icons.feathericons.Download
 import compose.icons.feathericons.Github
 import compose.icons.feathericons.Globe
+import compose.icons.feathericons.MessageCircle
 import compose.icons.feathericons.RefreshCw
 import compose.icons.feathericons.Tag
 
@@ -212,6 +213,13 @@ internal fun AboutSection(
                 icon = FeatherIcons.AlertCircle,
                 title = stringResource(R.string.agreement_privacy),
                 onClick = { openUrl(context, privacyUrl) }
+            )
+            SettingsDivider()
+            // 意见反馈：跳 GitHub 新建 issue，方便用户报 bug / 提建议
+            SettingsRow(
+                icon = FeatherIcons.MessageCircle,
+                title = stringResource(R.string.about_feedback),
+                onClick = { openUrl(context, FEEDBACK_URL) }
             )
         }
     }
@@ -560,4 +568,5 @@ private fun loadAppIconBitmap(context: Context): ImageBitmap? {
 private const val GITHUB_REPO_URL = "https://github.com/yhdmgf/AiVerse"
 private const val UPSTREAM_REPO_URL = "https://github.com/jieapi/AiCode"
 private const val LICENSE_URL = "https://github.com/yhdmgf/AiVerse/blob/main/LICENSE"
+private const val FEEDBACK_URL = "https://github.com/yhdmgf/AiVerse/issues/new"
 private const val ICON_PX_DP = 48

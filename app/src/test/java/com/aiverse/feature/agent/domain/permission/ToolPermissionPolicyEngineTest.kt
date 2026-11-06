@@ -45,7 +45,7 @@ class ToolPermissionPolicyEngineTest {
         coEvery { repo.loadEffectiveForCurrentProject() } returns rules.toList()
         val safety = mockk<ToolSafetySettingsRepository>(relaxed = true)
         coEvery { safety.isSafetyInterceptionDisabled() } returns safetyDisabled
-        return ToolPermissionPolicyEngine(repo, safety, appContext())
+        return ToolPermissionPolicyEngine(repo, safety, mockk<FileWhitelistPolicy>(relaxed = true), appContext())
     }
 
     private fun tool(vararg caps: ToolCapability): AgentTool {
@@ -103,7 +103,8 @@ class ToolPermissionPolicyEngineTest {
     @Test
     fun autoMode_allowsAnyTool() = runTest {
         val e = engine()
-        val r = e.evaluate(tool(ToolCapability.WRITE_WORKSPACE), "writeFile", emptyMap(), AgentMode.AUTO)
+        // 普通工具在 AUTO 下放行；文件写操作（writeFile/editFile）永远需用户确认，不在此列
+        val r = e.evaluate(tool(ToolCapability.READ_WORKSPACE), "list", emptyMap(), AgentMode.AUTO)
         assertEquals(ToolPermissionPolicyEngine.Verdict.ALLOW, r.verdict)
     }
 
@@ -564,7 +565,7 @@ class ToolPermissionPolicyEngineTest {
     fun remember_dedupesAndAddsEach() = runTest {
         val repo = mockk<PermissionRulesRepository>(relaxed = true)
         coEvery { repo.add(any(), any()) } just runs
-        val e = ToolPermissionPolicyEngine(repo, mockk(relaxed = true), appContext())
+        val e = ToolPermissionPolicyEngine(repo, mockk(relaxed = true), mockk<FileWhitelistPolicy>(relaxed = true), appContext())
 
         e.remember("Bash", listOf("git pull", "git pull", "ls"), PermissionScope.PROJECT)
 

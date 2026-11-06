@@ -1,6 +1,9 @@
 package com.aiverse.feature.agent.presentation.component
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -8,7 +11,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -128,6 +133,10 @@ import compose.icons.feathericons.Server
 import compose.icons.feathericons.Settings
 import compose.icons.feathericons.Trash2
 import compose.icons.feathericons.X
+import compose.icons.feathericons.Check
+import compose.icons.feathericons.CornerUpRight
+import compose.icons.feathericons.Share2
+import compose.icons.feathericons.Upload
 import androidx.compose.ui.res.stringResource
 import com.aiverse.R
 import java.text.SimpleDateFormat
@@ -175,6 +184,14 @@ fun ChatDrawerContent(
     onPasteOverwrite: () -> Unit,
     onCancelPasteOverwrite: () -> Unit,
     onClearClipboard: () -> Unit,
+    // 文件管理增强：分享/导入/导出/批量移动
+    onShareEntries: (Set<String>) -> Unit,
+    onExportEntries: (Set<String>, Uri) -> Unit,
+    onImportFiles: (List<Uri>, String) -> Unit,
+    onCutEntries: (Set<String>) -> Unit,
+    onPasteEntries: (String) -> Unit,
+    batchCut: Set<String> = emptySet(),
+    onClearBatchCut: () -> Unit,
     onNavigateToBrowser: (() -> Unit)? = null,
     onOpenFavorites: (() -> Unit)? = null,
     onNavigateToSettings: () -> Unit,
@@ -365,7 +382,15 @@ fun ChatDrawerContent(
                     onCopyEntry = onCopyEntry,
                     onCutEntry = onCutEntry,
                     onPasteEntry = onPasteEntry,
-                    onClearClipboard = onClearClipboard
+                    onClearClipboard = onClearClipboard,
+                    onShareEntries = onShareEntries,
+                    onExportEntries = onExportEntries,
+                    onImportFiles = onImportFiles,
+                    onCutEntries = onCutEntries,
+                    onPasteEntries = onPasteEntries,
+                    batchCut = batchCut,
+                    onClearBatchCut = onClearBatchCut,
+                    onBatchDelete = onDeleteEntry
                 )
             }
         }
@@ -891,13 +916,87 @@ private fun FileBrowserTab(
     onCopyEntry: (String, String) -> Unit,
     onCutEntry: (String, String) -> Unit,
     onPasteEntry: (String, (Boolean) -> Unit) -> Unit,
-    onClearClipboard: () -> Unit
+    onClearClipboard: () -> Unit,
+    onShareEntries: (Set<String>) -> Unit,
+    onExportEntries: (Set<String>, Uri) -> Unit,
+    onImportFiles: (List<Uri>, String) -> Unit,
+    onCutEntries: (Set<String>) -> Unit,
+    onPasteEntries: (String) -> Unit,
+    batchCut: Set<String> = emptySet(),
+    onClearBatchCut: () -> Unit,
+    onBatchDelete: (String) -> Unit
 ) {
+    // 编辑模式：点击编辑按钮进入，行前置复选框可勾选；选中后可批量分享/导出/移动/删除
+    var editMode by remember { mutableStateOf(false) }
+    var selectedPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 用户手动取消的后代（从选中文件夹的整体选中中排除），用于文件夹半选态
+    var unselectedFromFolders by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val inSelectionMode = editMode
+    // 导出待处理路径（单条或批量），SAF 回调后用
+    var exportPendingPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 导入目标目录：工作区根
+    val workspaceRoot = (state as? FileBrowseState.Success)?.nodes?.firstOrNull()?.path ?: "~/workspace"
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) onImportFiles(uris, workspaceRoot)
+    }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null && exportPendingPaths.isNotEmpty()) onExportEntries(exportPendingPaths, uri)
+        exportPendingPaths = emptySet()
+    }
     var creating by remember { mutableStateOf<CreateTarget?>(null) }
     var menuNode by remember { mutableStateOf<FileTreeNode?>(null) }
     var pendingRename by remember { mutableStateOf<FileTreeNode?>(null) }
     var pendingDelete by remember { mutableStateOf<FileTreeNode?>(null) }
     val hScroll = rememberScrollState()
+    val browseNodes = (state as? FileBrowseState.Success)?.nodes.orEmpty()
+    fun isSelected(path: String): Boolean =
+        path in selectedPaths ||
+            (selectedPaths.any { f -> f != path && path.startsWith("$f/") } && path !in unselectedFromFolders)
+    fun descendantsOf(path: String): Set<String> = browseNodes
+        .filter { it.path == path || it.path.startsWith("$path/") }
+        .map { it.path }.toSet()
+    fun directChildrenOf(path: String, depth: Int): List<FileTreeNode> = browseNodes
+        .filter { it.depth == depth + 1 && it.path.startsWith("$path/") }
+    // 选择态：0 未选 / 1 全选 / 2 部分（仅文件夹）
+    fun selectionStateOf(node: FileTreeNode): Int {
+        if (!node.entry.isDirectory) return if (isSelected(node.path)) 1 else 0
+        val children = directChildrenOf(node.path, node.depth)
+        if (children.isEmpty()) return if (isSelected(node.path)) 1 else 0
+        val selCount = children.count { isSelected(it.path) }
+        return when {
+            selCount == 0 -> 0
+            selCount == children.size -> 1
+            else -> 2
+        }
+    }
+    fun toggleSelect(node: FileTreeNode) {
+        val kids = descendantsOf(node.path)
+        if (node.entry.isDirectory) {
+            val children = directChildrenOf(node.path, node.depth)
+            val allSel = children.isNotEmpty() && children.all { isSelected(it.path) }
+            if (allSel) {
+                // 全选 → 取消全部（文件夹 + 所有后代）
+                selectedPaths = selectedPaths - kids
+                unselectedFromFolders = unselectedFromFolders - kids
+            } else {
+                // 未选 / 部分 → 全选文件夹（后代经祖先推断全部高亮）
+                selectedPaths = selectedPaths + node.path
+                unselectedFromFolders = unselectedFromFolders - kids
+            }
+        } else {
+            if (isSelected(node.path)) {
+                selectedPaths = selectedPaths - node.path
+                unselectedFromFolders = unselectedFromFolders + node.path
+            } else {
+                selectedPaths = selectedPaths + node.path
+                unselectedFromFolders = unselectedFromFolders - node.path
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (state) {
@@ -949,16 +1048,35 @@ private fun FileBrowserTab(
                             .horizontalScroll(hScroll)
                     ) {
                         items(state.nodes, key = { it.path }) { node ->
+                            val selState = selectionStateOf(node)
                             FileTreeRow(
                                 node = node,
                                 rowWidth = rowWidth,
                                 expanding = node.entry.isDirectory && node.path == expandingPath,
                                 busy = node.path in fileOpPaths,
+                                selectionState = selState,
+                                inSelectionMode = inSelectionMode,
                                 onClick = {
-                                    if (node.entry.isDirectory) onToggleExpand(node.path)
-                                    else onOpenFile(node.path)
+                                    when {
+                                        batchCut.isNotEmpty() && node.entry.isDirectory -> onPasteEntries(node.path)
+                                        // 编辑模式：文件夹→进入查看，文件→勾选
+                                        inSelectionMode && node.entry.isDirectory -> onToggleExpand(node.path)
+                                        inSelectionMode -> toggleSelect(node)
+                                        node.entry.isDirectory -> onToggleExpand(node.path)
+                                        else -> onOpenFile(node.path)
+                                    }
                                 },
-                                onLongClick = { menuNode = node },
+                                onLongClick = {
+                                    if (!inSelectionMode) {
+                                        editMode = true
+                                        selectedPaths = emptySet()
+                                        unselectedFromFolders = emptySet()
+                                        toggleSelect(node)
+                                    } else {
+                                        toggleSelect(node)
+                                    }
+                                },
+                                onToggleSelect = { toggleSelect(node) },
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
                                     fadeOutSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
@@ -993,6 +1111,31 @@ private fun FileBrowserTab(
                 )
             }
             IconButton(
+                onClick = { importLauncher.launch(arrayOf("*/*")) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = FeatherIcons.Upload,
+                    contentDescription = stringResource(R.string.file_browser_import),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(
+                onClick = {
+                    editMode = !editMode
+                    if (editMode) selectedPaths = emptySet()
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = FeatherIcons.Edit2,
+                    contentDescription = stringResource(R.string.file_browser_edit_mode),
+                    modifier = Modifier.size(16.dp),
+                    tint = if (editMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(
                 onClick = onRefresh,
                 modifier = Modifier.size(32.dp)
             ) {
@@ -1002,6 +1145,82 @@ private fun FileBrowserTab(
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+        // 多选批量操作栏：编辑模式且选中后底部显示分享/导出/移动/删除/取消
+        if (inSelectionMode && selectedPaths.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.file_browser_selected_count, selectedPaths.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onShareEntries(selectedPaths) }, modifier = Modifier.size(36.dp)) {
+                        Icon(FeatherIcons.Share2, contentDescription = stringResource(R.string.file_browser_share), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = {
+                        exportPendingPaths = selectedPaths
+                        exportLauncher.launch("export_${System.currentTimeMillis()}.zip")
+                    }, modifier = Modifier.size(36.dp)) {
+                        Icon(FeatherIcons.Download, contentDescription = stringResource(R.string.file_browser_export), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = {
+                        onCutEntries(selectedPaths)
+                        selectedPaths = emptySet()
+                        unselectedFromFolders = emptySet()
+                    }, modifier = Modifier.size(36.dp)) {
+                        Icon(FeatherIcons.CornerUpRight, contentDescription = stringResource(R.string.file_browser_move), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = {
+                        selectedPaths.forEach { onBatchDelete(it) }
+                        selectedPaths = emptySet()
+                        unselectedFromFolders = emptySet()
+                    }, modifier = Modifier.size(36.dp)) {
+                        Icon(FeatherIcons.Trash2, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { selectedPaths = emptySet(); unselectedFromFolders = emptySet(); editMode = false }, modifier = Modifier.size(36.dp)) {
+                        Icon(FeatherIcons.X, contentDescription = stringResource(R.string.file_browser_cancel_selection), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+        // 批量移动：有 batchCut 时底部提示点击目标目录粘贴
+        if (batchCut.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.file_browser_move_cut_hint, batchCut.size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { onClearBatchCut() }) {
+                        Text(stringResource(R.string.file_browser_cancel_selection))
+                    }
+                }
             }
         }
     }
@@ -1057,6 +1276,15 @@ private fun FileBrowserTab(
                 val target = node.path
                 menuNode = null
                 onPasteEntry(target) { /* 结果由调用方决定是否提示，这里保持静默 */ }
+            },
+            onShare = {
+                menuNode = null
+                onShareEntries(setOf(node.path))
+            },
+            onExport = {
+                menuNode = null
+                exportPendingPaths = setOf(node.path)
+                exportLauncher.launch("export_${node.entry.name}.zip")
             },
             onDismiss = { menuNode = null }
         )
@@ -1182,6 +1410,8 @@ private fun FileTreeActionSheet(
     onCopy: () -> Unit,
     onCut: () -> Unit,
     onPasteHere: () -> Unit,
+    onShare: () -> Unit,
+    onExport: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AdaptiveModalBottomSheet(
@@ -1229,6 +1459,18 @@ private fun FileTreeActionSheet(
             }
             if (node.root == null) {
                 SheetActionRow(
+                    icon = FeatherIcons.Share2,
+                    label = stringResource(R.string.file_browser_share),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onShare
+                )
+                SheetActionRow(
+                    icon = FeatherIcons.Download,
+                    label = stringResource(R.string.file_browser_export),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onExport
+                )
+                SheetActionRow(
                     icon = FeatherIcons.Copy,
                     label = stringResource(R.string.common_copy),
                     tint = MaterialTheme.colorScheme.onSurface,
@@ -1267,8 +1509,11 @@ private fun FileTreeRow(
     rowWidth: Dp,
     expanding: Boolean,
     busy: Boolean,
+    selectionState: Int = 0, // 0 未选 / 1 全选 / 2 部分（仅文件夹）
+    inSelectionMode: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onToggleSelect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // 展开加载态加最小延迟：本地模式列目录极快，避免每次展开都闪一下转圈。
@@ -1291,12 +1536,43 @@ private fun FileTreeRow(
     Row(
         modifier = modifier
             .width(rowWidth)
+            .background(if (selectionState > 0) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .clip(RoundedCornerShape(10.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(vertical = Spacing.xs + 2.dp)
             .padding(start = Spacing.sm, end = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (inSelectionMode) {
+            val checked = selectionState == 1
+            val partial = selectionState == 2
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (checked || partial) MaterialTheme.colorScheme.primary else Color.Transparent
+                    )
+                    .border(
+                        1.dp,
+                        if (checked || partial) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        RoundedCornerShape(4.dp)
+                    )
+                    .clickable { onToggleSelect() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (checked) {
+                    Icon(
+                        imageVector = FeatherIcons.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+                // 部分选中：蓝色实心方块无符号（仅文件夹）
+            }
+            Spacer(Modifier.width(Spacing.xs))
+        }
         Spacer(Modifier.width(Spacing.lg * node.depth))
         if (node.entry.isDirectory) {
             if (showExpanding) {

@@ -39,8 +39,8 @@ class BackupCryptoTest {
     fun encryptStream_writesVersionedHeader() {
         val encryptedBytes = encrypt("payload".toByteArray(Charsets.UTF_8))
 
-        assertArrayEquals("AiVerseBK".toByteArray(Charsets.US_ASCII), encryptedBytes.copyOfRange(0, 8))
-        assertEquals(2, encryptedBytes[8].toInt())
+        assertArrayEquals("AiVerseBK".toByteArray(Charsets.US_ASCII), encryptedBytes.copyOfRange(0, 9))
+        assertEquals(2, encryptedBytes[9].toInt())
     }
 
     @Test

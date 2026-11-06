@@ -35,6 +35,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +77,7 @@ import kotlin.system.exitProcess
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -120,6 +122,7 @@ import com.aiverse.feature.onboarding.presentation.LocalOnboardingTargetRegistry
 import com.aiverse.feature.onboarding.presentation.OnboardingOverlay
 import com.aiverse.feature.onboarding.presentation.OnboardingTargetRegistry
 import com.aiverse.feature.settings.data.repository.KeepaliveSettingsRepository
+import com.aiverse.feature.settings.data.repository.AppearanceSettingsRepository
 import com.aiverse.feature.settings.data.repository.AppThemeMode
 import com.aiverse.feature.settings.data.repository.BackgroundSettingsRepository
 import com.aiverse.feature.settings.data.repository.ScreenOnSettingsRepository
@@ -160,6 +163,10 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var backgroundSettings: BackgroundSettingsRepository
 
+    /** 外观设置（聊天/输入框字号、界面缩放），启动时注入并在此收集三档值注入全局主题。 */
+    @Inject
+    lateinit var appearanceSettings: AppearanceSettingsRepository
+
     /** 屏幕常亮开关：只在 App 前台约束屏幕，切后台由系统自动失效。 */
     @Inject
     lateinit var screenOnSettings: ScreenOnSettingsRepository
@@ -192,6 +199,14 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var browserManager: com.aiverse.feature.agent.domain.tool.browser.BrowserManager
+
+    /** Web 发消息桥：注册 ViewModel 的发送回调，供 Web 服务器转发网页端消息。 */
+    @Inject
+    lateinit var webMessageBridge: com.aiverse.feature.web.WebMessageBridge
+
+    /** 悬浮球设置：App 启动时若开关已开启且有悬浮窗权限则自动恢复。 */
+    @Inject
+    lateinit var toolSafetySettings: com.aiverse.feature.settings.data.repository.ToolSafetySettingsRepository
 
     /** 环境安装是否成功：本地容器读 /.provisioned 标记（版本匹配才算完成）；远程模式用户自装，恒 true。 */
     private fun isContainerProvisioned(): Boolean =
@@ -258,6 +273,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // 悬浮球：App 启动时若开关已开启且已授予悬浮窗权限则自动恢复（重启后不丢失）。
+        lifecycleScope.launch {
+            val enabled = toolSafetySettings.overlayBallEnabledFlow.first()
+            if (enabled && android.provider.Settings.canDrawOverlays(this@MainActivity)) {
+                com.aiverse.core.ui.overlay.OverlayBallService.show(this@MainActivity)
+            }
+        }
         // API 30+：全局切到 ADJUST_NOTHING，由 rememberImeBottomInset() 接管键盘内边距。
         // 必须在 Activity 级别统一设置，不能在每个 composable 里各自 save/restore——
         // NavHost 过渡动画期间新旧页面共存，旧页面 dispose 恢复 softInputMode 会触发窗口重布局导致白屏。
@@ -294,6 +316,9 @@ class MainActivity : ComponentActivity() {
             val dynamicColor by themeSettings.dynamicColorFlow.collectAsStateWithLifecycle(initialValue = false)
             val iconColorful by themeSettings.iconColorFlow.collectAsStateWithLifecycle(initialValue = true)
             val bubbleStyle by themeSettings.bubbleStyleFlow.collectAsStateWithLifecycle(initialValue = ChatBubbleStyle.CLASSIC_OUTLINE)
+            val chatFontSizeSp by appearanceSettings.chatFontSizeSpFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_CHAT_FONT_SIZE_SP)
+            val inputFontSizeSp by appearanceSettings.inputFontSizeSpFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_INPUT_FONT_SIZE_SP)
+            val uiFontScale by appearanceSettings.uiFontScaleFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_UI_FONT_SCALE)
             val systemDarkTheme = isSystemInDarkTheme()
             val darkTheme = when (themeMode) {
                 AppThemeMode.AUTO -> systemDarkTheme
@@ -316,7 +341,10 @@ class MainActivity : ComponentActivity() {
                 preset = AppThemePreset.findById(themePresetId),
                 dynamicColor = dynamicColor,
                 iconColorful = iconColorful,
-                bubbleStyle = bubbleStyle
+                bubbleStyle = bubbleStyle,
+                chatFontSizeSp = chatFontSizeSp,
+                inputFontSizeSp = inputFontSizeSp,
+                uiFontScale = uiFontScale
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -331,7 +359,8 @@ class MainActivity : ComponentActivity() {
                             AppNavigation(
                                 onboardingRepository = onboardingRepository,
                                 agreementAccepted = agreementAccepted,
-                                isContainerReady = isContainerReady
+                                isContainerReady = isContainerReady,
+                                webMessageBridge = this@MainActivity.webMessageBridge
                             )
                             if (agreementAccepted) {
                                 // 全局凭据弹窗：覆盖所有页面，命令行 git 缺凭据在任意页面都能弹。
@@ -417,7 +446,8 @@ private const val MAX_PANE_SPLIT = 0.7f
 fun AppNavigation(
     onboardingRepository: com.aiverse.feature.onboarding.data.OnboardingRepository,
     agreementAccepted: Boolean,
-    isContainerReady: () -> Boolean
+    isContainerReady: () -> Boolean,
+    webMessageBridge: com.aiverse.feature.web.WebMessageBridge
 ) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -436,6 +466,18 @@ fun AppNavigation(
     val agentViewModel: AIAgentViewModel = hiltViewModel()
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val workspaceViewModel: WorkspaceViewModel = hiltViewModel()
+
+    // Web 发消息桥：注册 ViewModel 的发送回调，Activity 销毁时解绑。
+    DisposableEffect(agentViewModel) {
+        val unbind = webMessageBridge.registerSender { sessionId, content ->
+            agentViewModel.enqueueAgentRequest(
+                request = content,
+                targetSessionId = sessionId
+            )
+            true
+        }
+        onDispose { unbind() }
+    }
 
     // ── 首次启动引导 ──
     val onboardingStateHolder = remember { OnboardingStateHolder() }
@@ -690,6 +732,33 @@ fun AppNavigation(
                 agentViewModel.pasteBrowseEntry(targetDir, onResult)
             },
             onClearClipboard = { agentViewModel.clearBrowseClipboard() },
+            onShareEntries = { agentViewModel.shareEntries(it) },
+            onExportEntries = { paths, uri ->
+                agentViewModel.exportEntries(paths, uri) { ok ->
+                    if (!ok) toastFileOpFailed(context, R.string.file_browser_export_failed)
+                }
+            },
+            onImportFiles = { uris, dir ->
+                agentViewModel.importFiles(uris, dir) { count ->
+                    if (count > 0) {
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(R.string.file_browser_import_success, count),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        toastFileOpFailed(context, R.string.file_browser_import_failed)
+                    }
+                }
+            },
+            onCutEntries = { agentViewModel.cutEntries(it) },
+            onPasteEntries = {
+                agentViewModel.pasteEntries(it) { ok ->
+                    if (!ok) toastFileOpFailed(context, R.string.file_browser_move_failed)
+                }
+            },
+            batchCut = agentViewModel.browseBatchCut.collectAsStateWithLifecycle().value,
+            onClearBatchCut = { agentViewModel.clearBatchCut() },
             onPasteOverwrite = { agentViewModel.pasteBrowseEntryOverwrite() },
             onCancelPasteOverwrite = { agentViewModel.clearPasteConflict() },
             onSelect = {

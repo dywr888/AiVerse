@@ -78,6 +78,9 @@ class ShizukuManager @Inject constructor(
         /** 命令超时上限（毫秒），与 [com.aiverse.feature.agent.domain.container.CommandEngine.MAX_TIMEOUT_MS] 对齐。 */
         const val MAX_TIMEOUT_MS = 1_800_000L
 
+        /** 通用命令默认输出上限（字符），与 BoundedOutput 默认 head+tail 一致。 */
+        const val DEFAULT_MAX_OUTPUT_CHARS = 40_000
+
         const val DOWNLOAD_URL = "https://shizuku.rikka.app/download/"
     }
 
@@ -223,11 +226,15 @@ class ShizukuManager @Inject constructor(
     }
 
     /** 执行 shell 命令。未就绪或绑定失败时抛异常，由调用方转成工具错误。 */
-    suspend fun runCommand(command: String, timeoutMs: Long): ShizukuCommandResult {
+    suspend fun runCommand(
+        command: String,
+        timeoutMs: Long,
+        maxOutputChars: Int = DEFAULT_MAX_OUTPUT_CHARS
+    ): ShizukuCommandResult {
         val service = ensureBound()
         val timeout = timeoutMs.coerceIn(1_000L, MAX_TIMEOUT_MS).toInt()
         return withContext(Dispatchers.IO) {
-            val bundle = service.exec(command, timeout)
+            val bundle = service.exec(command, timeout, maxOutputChars)
             ShizukuCommandResult(
                 output = bundle.getString(ShizukuShellService.KEY_OUTPUT).orEmpty(),
                 exitCode = bundle.getInt(ShizukuShellService.KEY_EXIT_CODE, ShizukuShellService.EXIT_FAILURE)

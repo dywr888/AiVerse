@@ -40,6 +40,7 @@ import com.aiverse.feature.agent.domain.shizuku.ShizukuState
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Activity
 import compose.icons.feathericons.Bell
+import compose.icons.feathericons.Circle
 import compose.icons.feathericons.Download
 import compose.icons.feathericons.Folder
 import compose.icons.feathericons.Power
@@ -62,7 +63,9 @@ internal fun AppPermissionsSection(
     shizukuState: ShizukuState,
     onRequestShizukuPermission: () -> Unit,
     onOpenShizuku: () -> Unit,
-    onRefreshShizuku: () -> Unit
+    onRefreshShizuku: () -> Unit,
+    overlayBallEnabled: Boolean,
+    onToggleOverlayBall: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -179,6 +182,18 @@ internal fun AppPermissionsSection(
                         text = stringResource(shizukuState.statusRes()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Circle,
+                title = stringResource(R.string.perm_overlay_ball),
+                subtitle = stringResource(R.string.perm_overlay_ball_desc),
+                trailing = {
+                    AppSwitch(
+                        checked = overlayBallEnabled,
+                        onCheckedChange = onToggleOverlayBall
                     )
                 }
             )

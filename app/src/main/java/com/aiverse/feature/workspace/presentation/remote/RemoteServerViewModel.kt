@@ -60,6 +60,7 @@ class RemoteServerViewModel @Inject constructor(
 
     val syncUseGitIgnore = syncSettingsRepository.useGitIgnore
     val maxSyncBatchSize = syncSettingsRepository.maxSyncBatchSize
+    val sshGuideSeen = syncSettingsRepository.sshGuideSeen
 
     init {
         loadData()
@@ -464,6 +465,10 @@ class RemoteServerViewModel @Inject constructor(
 
     fun setMaxSyncBatchSize(size: Int) {
         syncSettingsRepository.setMaxSyncBatchSize(size)
+    }
+
+    fun markSshGuideSeen() {
+        syncSettingsRepository.setSshGuideSeen(true)
     }
 
     fun toggleFtpServer() {

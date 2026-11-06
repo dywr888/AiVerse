@@ -66,7 +66,8 @@ data class BackupOptions(
     val appSettings: Boolean = true,
     val workspaceFiles: Boolean = false,
     val memories: Boolean = true,
-    val favorites: Boolean = true
+    val favorites: Boolean = true,
+    val skills: Boolean = true
 )
 
 data class RestoreStats(
@@ -80,7 +81,8 @@ data class RestoreStats(
     val globalPermissionRules: Int = 0,
     val workspaceFiles: Int = 0,
     val memories: Int = 0,
-    val favorites: Int = 0
+    val favorites: Int = 0,
+    val skills: Int = 0
 ) {
     operator fun plus(other: RestoreStats) = RestoreStats(
         providers = providers + other.providers,
@@ -93,6 +95,7 @@ data class RestoreStats(
         globalPermissionRules = globalPermissionRules + other.globalPermissionRules,
         workspaceFiles = workspaceFiles + other.workspaceFiles,
         memories = memories + other.memories,
-        favorites = favorites + other.favorites
+        favorites = favorites + other.favorites,
+        skills = skills + other.skills
     )
 }

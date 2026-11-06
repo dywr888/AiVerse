@@ -127,6 +127,47 @@ data class UpdateFavoriteRequest(
     val content: String
 )
 
+/** 重命名会话请求体。 */
+@Serializable
+data class RenameSessionRequest(
+    val title: String
+)
+
+/** 切换会话模型请求体。 */
+@Serializable
+data class SetSessionModelRequest(
+    val providerId: String? = null,
+    val model: String? = null
+)
+
+/** 添加模型请求体（给某 provider 追加一个模型名）。 */
+@Serializable
+data class AddModelRequest(
+    val providerId: String,
+    val model: String
+)
+
+/** 网页端 API 返回的模型/提供商 DTO。 */
+@Serializable
+data class ModelInfoDto(
+    val id: String,
+    val name: String,
+    val type: String,
+    val models: List<String> = emptyList(),
+    val selectedModel: String = "",
+    val isEnabled: Boolean = true,
+    val hasApiKey: Boolean = false
+)
+
+/** 网页端 API 返回的工作区文件条目。 */
+@Serializable
+data class FileEntryDto(
+    val name: String,
+    val path: String,
+    val isDir: Boolean = false,
+    val size: Long = 0
+)
+
 /** 通用响应。 */
 @Serializable
 data class ApiResponse(

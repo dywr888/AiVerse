@@ -8,7 +8,8 @@ import com.aiverse.R
 enum class AgentMode {
     BUILD, // 默认模式，允许所有授权操作
     PLAN,  // 计划模式，拦截修改类操作，只读/探索为主
-    AUTO;  // 自动模式，放行所有权限（不弹窗），仅用户手动可切换；AI 无法通过 planMode 进入
+    AUTO,  // 自动模式，放行所有权限（不弹窗），仅用户手动可切换；AI 无法通过 planMode 进入
+    EXPERT; // 专家模式：按任务调度专业角色/子代理协作，适合复杂任务（多角色分工+主控汇总）
 
     /** 中文模式名（UI 模式按钮）。 */
     val labelRes: Int
@@ -16,6 +17,7 @@ enum class AgentMode {
             BUILD -> R.string.mode_build
             PLAN -> R.string.mode_plan
             AUTO -> R.string.mode_auto
+            EXPERT -> R.string.mode_expert
         }
 
     /** 切换到该模式时的状态提示文案（Toast）。 */
@@ -24,6 +26,7 @@ enum class AgentMode {
             BUILD -> R.string.mode_switch_build
             PLAN -> R.string.mode_switch_plan
             AUTO -> R.string.mode_switch_auto
+            EXPERT -> R.string.mode_switch_expert
         }
 
     /** 权限宽松度：数值越大越宽。用于把子会话的权限压到不超过父会话。 */
@@ -32,6 +35,8 @@ enum class AgentMode {
             PLAN -> 0
             BUILD -> 1
             AUTO -> 2
+            // 专家模式需执行编码/审查/测试等写入操作，权限与 BUILD 同级（不自动批准，比 AUTO 严谨）
+            EXPERT -> 1
         }
 
     /**

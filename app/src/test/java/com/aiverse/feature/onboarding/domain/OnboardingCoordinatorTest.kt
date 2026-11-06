@@ -24,7 +24,7 @@ class OnboardingCoordinatorTest {
 
         coordinator.initialize(OnboardingStatus.IN_PROGRESS)
         assertTrue(stateHolder.isActive)
-        assertEquals(OnboardingStep.OPEN_SIDEBAR, stateHolder.state.value.step)
+        assertEquals(OnboardingStep.OPEN_TERMINAL, stateHolder.state.value.step)
     }
 
     @Test
@@ -93,7 +93,7 @@ class OnboardingCoordinatorTest {
         coordinator.resetAndStart()
 
         assertTrue(stateHolder.isActive)
-        assertEquals(OnboardingStep.OPEN_SIDEBAR, stateHolder.state.value.step)
+        assertEquals(OnboardingStep.OPEN_TERMINAL, stateHolder.state.value.step)
         assertEquals(listOf(OnboardingStatus.IN_PROGRESS), persisted)
     }
 }

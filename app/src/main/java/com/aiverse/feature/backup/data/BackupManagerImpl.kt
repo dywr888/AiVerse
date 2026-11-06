@@ -18,6 +18,8 @@ import com.aiverse.feature.agent.domain.mcp.McpManager
 import com.aiverse.feature.agent.domain.memory.MemoryRepository
 import com.aiverse.feature.agent.domain.memory.MemoryScope
 import com.aiverse.feature.agent.domain.permission.PermissionRulesRepository
+import com.aiverse.feature.agent.domain.skill.SkillRepository
+import com.aiverse.feature.agent.domain.skill.SkillScope
 import com.aiverse.feature.backup.domain.AgentMessageDto
 import com.aiverse.feature.backup.domain.BackupCrypto
 import com.aiverse.feature.backup.domain.BackupDecryptionException
@@ -33,6 +35,7 @@ import com.aiverse.feature.backup.domain.ProviderDto
 import com.aiverse.feature.backup.domain.RemoteConnectionDto
 import com.aiverse.feature.backup.domain.RemoteMountDto
 import com.aiverse.feature.backup.domain.RestoreStats
+import com.aiverse.feature.backup.domain.SkillBackupMeta
 import com.aiverse.feature.backup.domain.TodoItemDto
 import com.aiverse.feature.backup.domain.WorkspaceBackupMeta
 import com.aiverse.feature.backup.domain.toMetadata
@@ -102,7 +105,8 @@ class BackupManagerImpl @Inject constructor(
     private val syncSettingsRepository: SyncSettingsRepository,
     private val workspaceRepository: WorkspaceRepository,
     private val memoryRepository: MemoryRepository,
-    private val favoriteRepository: FavoriteRepository
+    private val favoriteRepository: FavoriteRepository,
+    private val skillRepository: SkillRepository
 ) : BackupManager {
 
     private val json = Json {
@@ -307,6 +311,9 @@ class BackupManagerImpl @Inject constructor(
                     if (options.workspaceFiles) {
                         writeWorkspaceEntries(tar)
                     }
+                    if (options.skills) {
+                        writeSkillEntries(tar)
+                    }
                     if (options.chatHistory) {
                         writeJsonlFileEntry(tar, FILE_SESSIONS) { writer ->
                             var lastTs = 0L
@@ -382,6 +389,7 @@ class BackupManagerImpl @Inject constructor(
         workspaces = if (options.workspaceFiles) collectWorkspaceMetas() else emptyList(),
         memories = if (options.memories) collectMemories() else emptyList(),
         favorites = if (options.favorites) favoriteRepository.getAllOnce().map { it.toDto() } else emptyList(),
+        skills = if (options.skills) collectSkillMetas() else emptyList(),
         includesAppSettings = options.appSettings
     )
 
@@ -461,6 +469,21 @@ class BackupManagerImpl @Inject constructor(
         }
     }
 
+    // ── 技能备份 ─────────────────────────────────────────────
+
+    /** 第一遍：统计每个技能的目录文件数（写 metadata 用）。 */
+    private fun collectSkillMetas(): List<SkillBackupMeta> =
+        skillRepository.exportAllSkills().map { SkillBackupMeta(it.name, it.scope.name, it.files.size) }
+
+    /** 第二遍：把各技能目录文件写入 tar（`skills/<scope>/<name>/<相对路径>`）。 */
+    private fun writeSkillEntries(tar: TarArchiveOutputStream) {
+        skillRepository.exportAllSkills().forEach { bundle ->
+            bundle.files.forEach { (rel, bytes) ->
+                writeTarEntry(tar, "${SKILL_PREFIX}${bundle.scope.name}/${bundle.name}/$rel", bytes)
+            }
+        }
+    }
+
     /**
      * 递归遍历本地工作区，按「.gitignore（锚定）+ 同步忽略清单」排除文件；
      * `.git` 目录强制包含（其内部不参与忽略判断）；符号链接跳过（防循环）。
@@ -509,6 +532,7 @@ class BackupManagerImpl @Inject constructor(
 
     private suspend fun restoreFromTar(tar: TarArchiveInputStream, selectedWorkspaces: Set<String>?): RestoreStats {
         val restoreMapping = mutableMapOf<String, Workspace>()
+        val restoredSkills = mutableSetOf<String>()
         var metadata: BackupMetadata? = null
         var stats = RestoreStats()
         var entry = tar.nextEntry
@@ -555,6 +579,8 @@ class BackupManagerImpl @Inject constructor(
                 else -> {
                     if (entry.name.startsWith(WORKSPACE_PREFIX)) {
                         stats += restoreWorkspaceEntry(tar, entry.name, selectedWorkspaces, restoreMapping)
+                    } else if (entry.name.startsWith(SKILL_PREFIX)) {
+                        restoreSkillEntry(tar, entry.name)?.let { restoredSkills += it }
                     }
                 }
             }
@@ -565,7 +591,7 @@ class BackupManagerImpl @Inject constructor(
             error("不是有效的 AiVerse 备份文件：缺少 metadata.json")
         }
         FileLogger.i(TAG, "tar 解析完成，开始还原元数据段")
-        return stats + restoreMeta(meta, restoreMapping)
+        return stats + RestoreStats(skills = restoredSkills.size) + restoreMeta(meta, restoreMapping)
     }
 
     /** 逐行解析 jsonl 条目，每 [PAGE_SIZE] 条回调一次批量插入；返回该文件的总条数。 */
@@ -720,6 +746,26 @@ class BackupManagerImpl @Inject constructor(
             memories = meta.memories.size,
             favorites = meta.favorites.size
         )
+    }
+
+    /**
+     * 还原单个技能文件条目：`skills/<scope>/<name>/<相对路径>`。
+     * 逐文件写回技能目录（同名技能覆盖）；成功返回 `<scope>/<name>`（供去重计数），失败返回 null。
+     */
+    private fun restoreSkillEntry(tar: TarArchiveInputStream, name: String): String? {
+        val parts = name.removePrefix(SKILL_PREFIX).split('/')
+        if (parts.size < 3) return null
+        val scope = runCatching { SkillScope.valueOf(parts[0]) }.getOrNull() ?: return null
+        val skillName = parts[1]
+        val rel = parts.drop(2).joinToString("/")
+        if (rel.isBlank()) return null
+        val bytes = tar.readBytes()
+        if (bytes.isEmpty()) return null
+        return if (skillRepository.restoreSkillDir(skillName, scope, mapOf(rel to bytes))) {
+            "${parts[0]}/$skillName"
+        } else {
+            null
+        }
     }
 
     /**
@@ -941,6 +987,7 @@ class BackupManagerImpl @Inject constructor(
         const val FILE_TODOS = "todoItems.jsonl"
         const val FILE_LEGACY_SNAPSHOT = "snapshot.json"
         const val WORKSPACE_PREFIX = "workspaces/"
+        const val SKILL_PREFIX = "skills/"
     }
 }
 

@@ -63,6 +63,7 @@ import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.theme.LocalChatBubbleStyle
+import com.aiverse.core.theme.LocalChatFontSizeSp
 import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ContentWidth
 import com.aiverse.core.ui.ExpandableChevronIcon
@@ -350,6 +351,7 @@ internal fun AgentMessageItem(
                             }
                         } else if (isUser) {
                             val bubbleStyle = LocalChatBubbleStyle.current
+                            val chatFontSizeSp = LocalChatFontSizeSp.current
                             // 用户消息：右对齐气泡，外观由所选聊天气泡样式决定。
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -372,7 +374,10 @@ internal fun AgentMessageItem(
                                             Text(
                                                 text = message.content,
                                                 color = chatUserBubbleTextColor(),
-                                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = chatFontSizeSp.sp,
+                                                    lineHeight = (chatFontSizeSp + 4).sp
+                                                ),
                                                 modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
                                             )
                                         }
@@ -397,6 +402,7 @@ internal fun AgentMessageItem(
                         } else {
                             // 助手正文：不套容器，直接铺在页面底色上（文档流）。分块之间只留一个段落间距，
                             // 整条消息看起来仍是连续的一段正文。
+                            val chatFontSizeSp = LocalChatFontSizeSp.current
                             SelectionContainer {
                                 CompositionLocalProvider(
                                     LocalTextSelectionColors provides TextSelectionColors(
@@ -409,6 +415,7 @@ internal fun AgentMessageItem(
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.fillMaxWidth(),
                                         cache = markdownCache,
+                                        fontSizeSp = chatFontSizeSp
                                     )
                                 }
                             }

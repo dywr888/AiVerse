@@ -7,6 +7,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * 导出 / 还原一个技能目录的载荷：技能名 + 作用域 + 目录下全部文件（相对技能根，`/` 分隔）。
+ */
+data class SkillExportBundle(
+    val name: String,
+    val scope: SkillScope,
+    val files: Map<String, ByteArray>
+)
+
+/**
  * Skill 仓库，聚合各 [SkillSource]（全局目录 + 项目目录）提供的技能，
  * 并按 [SkillConfigRepository] 的禁用名单过滤注入清单。
  *
@@ -123,6 +132,41 @@ class SkillRepository @Inject constructor(
         return safeDeleteSkillDir(fileAccess, dirPath)
     }
 
+    /**
+     * 导出全部技能（含全局与项目级，跟随当前执行环境）：每个技能目录下所有文件的相对路径与字节。
+     * 供备份导出使用；目录不存在或读取失败时跳过该技能。
+     */
+    fun exportAllSkills(): List<SkillExportBundle> {
+        val bundles = mutableListOf<SkillExportBundle>()
+        listAllSkills().forEach { entry ->
+            val dir = entry.skill.dirPath ?: return@forEach
+            if (!fileAccess.isDirectory(dir)) return@forEach
+            val root = dir.trimEnd('/')
+            val files = fileAccess.listFilesRecursive(root, MAX_SKILL_TREE_DEPTH)
+                .associateWith { rel -> runCatching { fileAccess.readBytes("$root/$rel") }.getOrNull() }
+                .filterValues { it != null }
+                .mapValues { it.value!! }
+            if (files.isNotEmpty()) bundles += SkillExportBundle(entry.skill.name, entry.scope, files)
+        }
+        return bundles
+    }
+
+    /**
+     * 还原一个技能目录（备份还原用）：写入 `skillsRoot(scope)/name/` 下所有文件，同名技能覆盖。
+     * 名称非法或文件为空时返回 false；单个文件写盘失败即整体失败。
+     */
+    fun restoreSkillDir(name: String, scope: SkillScope, files: Map<String, ByteArray>): Boolean {
+        if (!isValidName(name) || files.isEmpty()) return false
+        val root = "${skillsRoot(scope).trimEnd('/')}/$name"
+        return try {
+            files.forEach { (rel, bytes) -> fileAccess.writeBytes("$root/$rel", bytes, overwrite = true) }
+            true
+        } catch (e: Exception) {
+            FileLogger.e(TAG, "还原技能失败: $name", e)
+            false
+        }
+    }
+
     companion object {
         private const val TAG = "SkillRepository"
 
@@ -138,6 +182,9 @@ class SkillRepository @Inject constructor(
 
         private const val MAX_NAME_LENGTH = 64
         private val ILLEGAL_NAME_CHARS = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
+
+        /** 导出技能目录时递归列文件的最大深度。 */
+        private const val MAX_SKILL_TREE_DEPTH = 20
 
         /** 目录里已有的指令文件完整路径：SKILL.md 优先，其次 CLAUDE.md（与 [SkillParser.parse] 同一套回退）。 */
         internal fun instructionFile(provider: FileAccessProvider, dirPath: String): String? {

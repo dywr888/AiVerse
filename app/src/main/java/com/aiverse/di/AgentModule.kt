@@ -49,6 +49,7 @@ import com.aiverse.feature.agent.domain.tool.remote.SshTailTool
 import com.aiverse.feature.agent.domain.tool.remote.SshUploadTool
 import com.aiverse.feature.agent.domain.tool.review.ReviewTool
 import com.aiverse.feature.agent.domain.tool.shizuku.ShizukuTool
+import com.aiverse.feature.agent.domain.tool.shizuku.ShizukuControlTool
 import com.aiverse.feature.agent.domain.tool.skill.LoadSkillTool
 import com.aiverse.feature.agent.domain.tool.question.AskUserQuestionTool
 import com.aiverse.feature.agent.domain.tool.todo.TodoTool
@@ -371,6 +372,7 @@ object AgentModule {
         generateImageTool: GenerateImageTool,
         executeCommandTool: ExecuteCommandTool,
         shizukuTool: ShizukuTool,
+        shizukuControlTool: ShizukuControlTool,
         terminalSessionTool: TerminalSessionTool,
         listFilesTool: ListFilesTool,
         searchCodeTool: SearchCodeTool,
@@ -405,6 +407,7 @@ object AgentModule {
             register("generateImage", generateImageTool)
             register("Bash", executeCommandTool)
             register("Shizuku", shizukuTool)
+            register("ShizukuControl", shizukuControlTool)
             register("terminal", terminalSessionTool)
             register("list", listFilesTool)
             register("search", searchCodeTool)

@@ -27,6 +27,7 @@
     <string name="tool_command_rule_denied_detail">Permission rules prohibit this command. Matched rule: %1$s; offending segment: %2$s; suggestion: rewrite it in an allowed form, or ask the user to update the rule under Tool permissions and retry.</string>
     <string name="tool_command_unanalyzable_reason">The command contains constructs that cannot be statically analyzed (%1$s); it can only be allowed once and cannot be remembered.</string>
     <string name="tool_shizuku_confirmation_reason">Shizuku operates on Android as adb shell. Each call requires confirmation and cannot be saved as always allowed.</string>
+    <string name="tool_shizuku_overlay_permission_reason">Shizuku phone control requires the overlay permission to confirm. Please enable "Display over other apps" for AiVerse in system settings and retry.</string>
     <string name="tool_whitelist_denied">File write whitelist: target path is outside the whitelist, rejected. Only paths listed in a skill\'s file_whitelist are writable; edit that skill\'s file_whitelist to allow more.</string>
     <string name="tool_write_always_confirm_reason">File write operations (write/edit) require user confirmation and are not auto-approved in AUTO mode.</string>
     <string name="tool_vision_images_attached">Attached %1$d images for direct viewing and analysis.</string>
@@ -79,6 +80,13 @@
     <string name="settings_provider_editor">Vendor</string>
     <string name="settings_default_models">Default Models</string>
     <string name="settings_general">Preferences</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_general">Appearance</string>
+    <string name="settings_appearance_fonts">Font Size</string>
+    <string name="settings_appearance_chat_font">Chat Font Size</string>
+    <string name="settings_appearance_input_font">Input Font Size</string>
+    <string name="settings_appearance_ui_scale">UI Scale</string>
+    <string name="settings_appearance_reset">Restore Defaults</string>
     <string name="settings_general_models">Models</string>
     <string name="settings_auto_remove_stale_models">Remove stale models after fetching</string>
     <string name="settings_auto_remove_stale_models_desc">On a successful fetch, drop local models the vendor no longer offers</string>
@@ -451,6 +459,9 @@
     <string name="common_reset">Reset</string>
     <string name="common_collapse_action">Collapse</string>
     <string name="chat_new_session">New Session</string>
+    <string name="chat_export_conversation">Export Chat</string>
+    <string name="chat_export_chooser">Export chat to</string>
+    <string name="chat_export_empty">No exportable content in this session</string>
     <string name="common_new_tab">New Tab</string>
     <string name="common_show">Show</string>
     <string name="common_local">Local</string>
@@ -562,6 +573,7 @@
     <string name="about_github_repo">GitHub Repository</string>
     <string name="about_upstream_repo">Upstream Repository</string>
     <string name="about_license">Open Source License</string>
+    <string name="about_feedback">Feedback</string>
     <string name="about_description">Universal AI Coding Agent for Android · Linux dev environment · Local &amp; remote SSH</string>
     <string name="about_check_update">Check for updates</string>
     <string name="about_checking_update">Querying GitHub for the latest version…</string>
@@ -651,6 +663,7 @@
     <string name="backup_data_workspace">Workspace Files</string>
     <string name="backup_data_memories">Memories</string>
     <string name="backup_data_favorites">Favorite Messages</string>
+    <string name="backup_data_skills">Skills</string>
     <string name="backup_workspace_git_hint">Workspace files are best backed up via Git; the export here is only a fallback</string>
     <string name="backup_password_label">Password (optional)</string>
     <string name="backup_processing">Processing</string>
@@ -667,6 +680,7 @@
     <string name="backup_stat_workspace_files">· Workspace Files: %1$s</string>
     <string name="backup_stat_memories">· Memories: %1$s</string>
     <string name="backup_stat_favorites">· Favorite Messages: %1$s</string>
+    <string name="backup_stat_skills">· Skills: %1$s</string>
     <string name="backup_settings_covered">Theme, keepalive, logging, vision, and sync preferences covered</string>
     <string name="backup_restore_workspaces_title">Restore workspaces</string>
     <string name="backup_restore_workspaces_warning">Files in local workspaces with the same name will be overwritten and cannot be undone. Select carefully.</string>
@@ -778,6 +792,22 @@
     <string name="common_overwrite">Overwrite</string>
     <string name="file_browser_clipboard_cut">Cut</string>
     <string name="file_browser_clipboard_copy">Copy</string>
+    <string name="file_browser_share">Share</string>
+    <string name="file_browser_export">Export</string>
+    <string name="file_browser_import">Import</string>
+    <string name="file_browser_move">Move to here</string>
+    <string name="file_browser_select_mode">Select</string>
+    <string name="file_browser_select_all">Select all</string>
+    <string name="file_browser_cancel_selection">Cancel selection</string>
+    <string name="file_browser_selected_count">%1$d selected</string>
+    <string name="file_browser_share_failed">Share failed</string>
+    <string name="file_browser_export_failed">Export failed</string>
+    <string name="file_browser_import_failed">Import failed</string>
+    <string name="file_browser_import_success">Imported %1$d files</string>
+    <string name="file_browser_move_failed">Move failed</string>
+    <string name="file_browser_move_cut_hint">Cut %1$d item(s), tap a folder to paste</string>
+    <string name="file_browser_move_success">Moved %1$d item(s)</string>
+    <string name="file_browser_edit_mode">Edit</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_save_success">Saved</string>
@@ -1337,6 +1367,11 @@
     <string name="prompts_reset_confirm">Deletes every custom prompt fragment in this project and the global layer; each number falls back to the built-in prompt. This cannot be undone.</string>
     <string name="prompts_help">Help</string>
     <string name="prompts_disable_builtin">Disable all built-in prompts</string>
+    <string name="prompt_skill_default_scope">Default skill install scope</string>
+    <string name="prompt_skill_scope_project">Project</string>
+    <string name="prompt_skill_scope_global">Global</string>
+    <string name="prompt_skill_scope_project_hint">Installs to current project, visible only here</string>
+    <string name="prompt_skill_scope_global_hint">Installs globally, shared by all projects</string>
     <string name="prompts_disable_builtin_hint">Keep only your own fragments; you must supply every rule yourself</string>
 
     <!-- Skills Settings -->
@@ -1479,6 +1514,14 @@
     <string name="perm_safety_confirm_action_ready">Confirm</string>
     <string name="perm_global_auto_approve">Allow all tools in one tap</string>
     <string name="perm_global_auto_approve_desc">All sessions no longer ask for permission each time; catastrophic deletes and Shizuku still intercepted</string>
+    <string name="perm_overlay_ball">Overlay ball</string>
+    <string name="perm_overlay_ball_desc">Show a floating app icon on screen; tap it to open the control panel (toggle &amp; size). Requires overlay permission</string>
+    <string name="overlay_ball_channel">Overlay ball</string>
+    <string name="overlay_ball_notification">Overlay ball is on; tap it to open the control panel</string>
+    <string name="overlay_ball_panel_title">Floating Ball</string>
+    <string name="overlay_ball_switch_label">Enable floating ball</string>
+    <string name="overlay_ball_size_label">Size</string>
+    <string name="overlay_ball_size_value">%1$ddp</string>
     <string name="perm_global_auto_confirm_title">Enable allow-all tools?</string>
     <string name="perm_global_auto_confirm_message">After enabling, AI tool calls (terminal, server, MCP, files, etc.) run directly without asking. Only catastrophic deletes and Shizuku host operations are still intercepted. Please proceed with caution.</string>
 
@@ -2071,4 +2114,8 @@
     <string name="favorites_detail_title">Favorite detail</string>
     <string name="favorites_source_session">Source session: %1$s</string>
     <string name="favorites_added">Added to favorites</string>
+
+    <!-- 连接与同步页：SSH 使用指南弹窗 -->
+    <string name="ssh_help_title">SSH Setup Guide</string>
+    <string name="ssh_help_content">### Quick Start\n\n1. **Official docs**: The full guide on SSH remote connection and file sync is in the AiVerse documentation (GitHub repo [yhdmgf/AiVerse](https://github.com/yhdmgf/AiVerse)).\n\n2. **Top-right actions**: The **top-right** of this page has the entry points:\n   - **Key icon**: click it to **save your SSH private key** (login key).\n   - **+ icon**: click it to **add a host**.\n\n3. **Add host**: enter the server **IP address** and **username**, select the saved key, and connect.\n\n4. **After connecting**: **the AI can use the SSH terminal** for you and **upload files** to the server.</string>
 </resources>

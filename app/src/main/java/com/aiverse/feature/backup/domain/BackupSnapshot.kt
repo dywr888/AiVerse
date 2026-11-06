@@ -49,7 +49,8 @@ data class BackupSnapshot(
     val compactionModel: String = "",
     val syncSettings: SyncSettingsSnapshot? = null,
     val memories: List<MemoryDto> = emptyList(),
-    val favorites: List<FavoriteItemDto> = emptyList()
+    val favorites: List<FavoriteItemDto> = emptyList(),
+    val skills: List<SkillBackupMeta> = emptyList()
 )
 
 /**
@@ -92,7 +93,17 @@ data class BackupMetadata(
     val workspaces: List<WorkspaceBackupMeta> = emptyList(),
     val memories: List<MemoryDto> = emptyList(),
     val favorites: List<FavoriteItemDto> = emptyList(),
+    val skills: List<SkillBackupMeta> = emptyList(),
     val includesAppSettings: Boolean = themeMode != null
+)
+
+/** 备份元数据中的一个技能段：名称 + 作用域 + 文件数（用于导入摘要）。 */
+@Serializable
+data class SkillBackupMeta(
+    val name: String,
+    /** "GLOBAL" 或 "PROJECT"。 */
+    val scope: String,
+    val fileCount: Int
 )
 
 /** 备份元数据中的一个工作区段：名称 + 备份的文件数（用于导入摘要）。 */
@@ -135,7 +146,8 @@ fun BackupSnapshot.toMetadata() = BackupMetadata(
     compactionModel = compactionModel,
     syncSettings = syncSettings,
     memories = memories,
-    favorites = favorites
+    favorites = favorites,
+    skills = skills
 )
 
 @Serializable

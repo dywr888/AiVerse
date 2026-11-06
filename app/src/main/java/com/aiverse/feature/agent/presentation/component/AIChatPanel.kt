@@ -1,6 +1,7 @@
 package com.aiverse.feature.agent.presentation.component
 
 import android.content.ClipData
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,6 +84,7 @@ import com.aiverse.core.ui.LocalImageViewer
 import com.aiverse.core.ui.readableContentMaxWidth
 import com.aiverse.core.ui.rememberImageViewerState
 import com.aiverse.core.ui.rememberViewerDecodeSpec
+import com.aiverse.feature.agent.domain.permission.ToolPermissionPolicyEngine
 import com.aiverse.feature.agent.domain.tool.question.UserQuestionAnswer
 import com.aiverse.feature.agent.presentation.AgentUIMessage
 import com.aiverse.feature.agent.presentation.AgentUIState
@@ -718,7 +720,9 @@ fun AIChatPanel(
     val activeToolName = runningTool.lastOrNull()?.toolName?.takeIf { it.isNotBlank() } ?: preparingTool
     val thinkingLabel = activeToolName?.let { stringResource(toolRunningLabelRes(it)) }
         ?: stringResource(R.string.chat_status_thinking)
-    val pendingPermission by viewModel.pendingToolPermission.collectAsStateWithLifecycle()
+    val allPendingPermission by viewModel.pendingToolPermission.collectAsStateWithLifecycle()
+    // ShizukuControl 同时由悬浮确认窗和前台面板处理：resolve 幂等，谁先点都生效。
+    val pendingPermission = allPendingPermission
     val pendingPermissionSessionTitle by viewModel.pendingToolPermissionSessionTitle.collectAsStateWithLifecycle()
     val pendingQuestion by viewModel.pendingUserQuestion.collectAsStateWithLifecycle()
     val currentTodoItems by viewModel.currentSessionTodoItems.collectAsStateWithLifecycle()
@@ -803,6 +807,29 @@ fun AIChatPanel(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
+    // 导出当前会话为 Markdown 并唤起系统分享。空会话/无 id 时静默返回。
+    fun exportCurrentSessionAsMarkdown() {
+        val sid = currentSessionId ?: return
+        viewModel.buildSessionMarkdown(sid) { md ->
+            if (md.isBlank()) {
+                Toast.makeText(context, R.string.chat_export_empty, Toast.LENGTH_SHORT).show()
+                return@buildSessionMarkdown
+            }
+            try {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/markdown"
+                    putExtra(Intent.EXTRA_SUBJECT, sessionTitle)
+                    putExtra(Intent.EXTRA_TEXT, md)
+                    // 文件名作为附加标题
+                    putExtra(Intent.EXTRA_TITLE, "$sessionTitle.md")
+                }
+                context.startActivity(Intent.createChooser(send, context.getString(R.string.chat_export_chooser)))
+            } catch (e: Exception) {
+                Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     // 回滚代码时若有文件因「快照后被改过」被跳过，必须告知用户——静默跳过等于把数据丢失
     // 换成了无声的失败。展示后立即清空状态，避免重组时重复弹。
@@ -1588,7 +1615,8 @@ fun AIChatPanel(
                 showMenuButton = showMenuButton,
                 terminalActive = terminalActive,
                 gitActive = gitActive,
-                browserActive = browserActive
+                browserActive = browserActive,
+                onExportChat = { exportCurrentSessionAsMarkdown() }
             )
         }
     ) { padding ->

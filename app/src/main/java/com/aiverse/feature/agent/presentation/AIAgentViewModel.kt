@@ -3,10 +3,13 @@ package com.aiverse.feature.agent.presentation
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import android.os.PowerManager
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
@@ -55,6 +58,7 @@ import com.aiverse.feature.agent.domain.notification.AgentNotificationKind
 import com.aiverse.feature.agent.domain.notification.NotificationOutcome
 import com.aiverse.feature.agent.domain.notification.PendingNotification
 import com.aiverse.feature.agent.domain.permission.PermissionChoice
+import com.aiverse.feature.agent.domain.permission.ToolPermissionPolicyEngine
 import com.aiverse.feature.agent.domain.mcp.McpManager
 import com.aiverse.feature.agent.domain.subagent.AgentDefinition
 import com.aiverse.feature.agent.domain.subagent.AgentDefinitionRepository
@@ -76,6 +80,11 @@ import com.aiverse.feature.workspace.domain.FileEntry
 import com.aiverse.feature.workspace.domain.WorkspacePathMapper
 import com.aiverse.feature.workspace.domain.isValidFileEntryName
 import com.aiverse.feature.agent.domain.workflow.AgentEvent
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import com.aiverse.feature.agent.domain.tool.ToolPermissionManager
 import com.aiverse.feature.agent.domain.tool.ToolRegistry
 import com.aiverse.feature.agent.domain.tool.mode.PlanApprovalChoice
@@ -798,6 +807,205 @@ class AIAgentViewModel @Inject constructor(
         _pasteConflict.value = null
     }
 
+    // region 批量移动 / 分享 / 导入 / 导出
+
+    /** 批量剪切板：多选后剪切多条，供粘贴到目标目录（移动）。 */
+    private val _browseBatchCut = MutableStateFlow<Set<String>>(emptySet())
+    val browseBatchCut: StateFlow<Set<String>> = _browseBatchCut.asStateFlow()
+
+    /** 多选剪切：把 [paths] 存入批量剪切板，清空单条剪切板避免混淆。 */
+    fun cutEntries(paths: Set<String>) {
+        if (paths.isEmpty()) return
+        _browseBatchCut.value = paths
+        _browseClipboard.value = null
+        runCatching {
+            Toast.makeText(
+                context,
+                context.getString(R.string.file_browser_move_cut_hint, paths.size),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    fun clearBatchCut() {
+        _browseBatchCut.value = emptySet()
+    }
+
+    /** 把批量剪切板内容移动到 [targetDir]；逐条 move，部分失败不影响其余。 */
+    fun pasteEntries(targetDir: String, onResult: (Boolean) -> Unit) = mutateBrowse(
+        busyPaths = _browseBatchCut.value,
+        onResult = onResult
+    ) {
+        val sources = _browseBatchCut.value
+        if (sources.isEmpty()) {
+            false
+        } else {
+            var allOk = true
+            var movedCount = 0
+            for (src in sources) {
+                val name = src.substringAfterLast('/')
+                val target = "$targetDir/$name"
+                if (target == src || target.startsWith("${src.trimEnd('/')}/")) continue
+                runCatching { fileAccess.move(src, target, overwrite = false) }
+                    .onSuccess { movedCount++ }
+                    .onFailure { allOk = false }
+            }
+            _browseBatchCut.value = emptySet()
+            if (movedCount > 0) {
+                runCatching {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.file_browser_move_success, movedCount),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            allOk
+        }
+    }
+
+    /** 分享条目：单文件直接 FileProvider 授权；多文件/文件夹打包 zip 后分享。 */
+    fun shareEntries(paths: Set<String>) {
+        if (paths.isEmpty()) return
+        viewModelScope.launch {
+            val uris = withContext(Dispatchers.IO) {
+                runCatching { buildShareUris(paths) }.getOrNull()
+            } ?: run {
+                Toast.makeText(context, context.getString(R.string.file_browser_share_failed), Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            if (uris.isEmpty()) {
+                Toast.makeText(context, context.getString(R.string.file_browser_share_failed), Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val intent = if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = shareMimeType(paths)
+                    putExtra(Intent.EXTRA_STREAM, uris.first())
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "*/*"
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            }
+            runCatching {
+                context.startActivity(
+                    Intent.createChooser(intent, context.getString(R.string.file_browser_share))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }.onFailure {
+                Toast.makeText(context, context.getString(R.string.file_browser_share_failed), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun buildShareUris(paths: Set<String>): List<Uri> {
+        val authority = "${context.packageName}.fileprovider"
+        // 单文件：直接授权（不打包）
+        if (paths.size == 1) {
+            val p = paths.first()
+            if (!fileAccess.isDirectory(p)) {
+                val local = fileAccess.copyToLocal(p)
+                return listOf(FileProvider.getUriForFile(context, authority, local))
+            }
+        }
+        // 多文件或含文件夹：打包 zip
+        val zipFile = File(context.cacheDir, "share_${System.currentTimeMillis()}.zip")
+        ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zos ->
+            for (p in paths) {
+                val name = p.substringAfterLast('/').ifEmpty { "root" }
+                addToZip(zos, p, name)
+            }
+        }
+        return listOf(FileProvider.getUriForFile(context, authority, zipFile))
+    }
+
+    private fun addToZip(zos: ZipOutputStream, path: String, entryName: String) {
+        if (fileAccess.isDirectory(path)) {
+            val children = runCatching { fileAccess.listFiles(path) }.getOrDefault(emptyList())
+            if (children.isEmpty()) {
+                runCatching { zos.putNextEntry(ZipEntry("$entryName/")); zos.closeEntry() }
+            } else {
+                for (child in children) {
+                    addToZip(zos, "$path/${child.name}", "$entryName/${child.name}")
+                }
+            }
+        } else {
+            runCatching {
+                zos.putNextEntry(ZipEntry(entryName))
+                zos.write(fileAccess.readBytes(path))
+                zos.closeEntry()
+            }
+        }
+    }
+
+    private fun shareMimeType(paths: Set<String>): String {
+        val p = paths.first()
+        if (fileAccess.isDirectory(p)) return "application/zip"
+        return when (p.substringAfterLast('.', "").lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            "md" -> "text/markdown"
+            "txt" -> "text/plain"
+            "json" -> "application/json"
+            "zip" -> "application/zip"
+            else -> "*/*"
+        }
+    }
+
+    /** 导入：从 SAF Uri 列表读取并写入 [targetDir]。返回导入成功数。 */
+    fun importFiles(uris: List<Uri>, targetDir: String, onResult: (Int) -> Unit) = viewModelScope.launch {
+        var count = 0
+        withContext(Dispatchers.IO) {
+            for (uri in uris) {
+                val name = queryUriFileName(uri) ?: continue
+                if (!isValidFileEntryName(name)) continue
+                val target = "$targetDir/$name"
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        fileAccess.writeStream(target, input, overwrite = true)
+                        count++
+                    }
+                }
+            }
+        }
+        if (count > 0) refreshBrowse()
+        onResult(count)
+    }
+
+    private fun queryUriFileName(uri: Uri): String? {
+        return runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment
+    }
+
+    /** 导出：把 [paths] 打包 zip 写入 SAF 目标 [destUri]。 */
+    fun exportEntries(paths: Set<String>, destUri: Uri, onResult: (Boolean) -> Unit) = viewModelScope.launch {
+        val ok = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openOutputStream(destUri)?.use { out ->
+                    ZipOutputStream(BufferedOutputStream(out)).use { zos ->
+                        for (p in paths) {
+                            val name = p.substringAfterLast('/').ifEmpty { "root" }
+                            addToZip(zos, p, name)
+                        }
+                    }
+                    true
+                } ?: false
+            }.getOrDefault(false)
+        }
+        onResult(ok)
+    }
+
+    // endregion
+
     private fun performPaste(clip: BrowseClipboard, target: String, overwrite: Boolean, onResult: (Boolean) -> Unit) {
         val busyPaths = if (clip.isCut) setOf(clip.sourcePath, target) else setOf(target)
         mutateBrowse(busyPaths = busyPaths, onResult = { success ->
@@ -1281,8 +1489,12 @@ class AIAgentViewModel @Inject constructor(
                 planApprovalManager.pendingApproval,
                 toolPermissionManager.pendingRequest
             ) { awaiting, question, plan, permission ->
+                // Shizuku 控制手机由悬浮确认窗（OverlayApprovalService）处理，不进后台审批通知。
+                val shizukuControlSessionId = permission
+                    ?.takeIf { it.toolName == ToolPermissionPolicyEngine.SHIZUKU_CONTROL_TOOL }
+                    ?.sessionId
                 val labels = LinkedHashMap<String, Triple<Int, ApprovalKind, String?>>()
-                awaiting.forEach {
+                awaiting.filter { it != shizukuControlSessionId }.forEach {
                     labels[it] = Triple(R.string.notification_approval_label_permission, ApprovalKind.PERMISSION,
                         permission?.takeIf { request -> request.sessionId == it }?.id)
                 }
@@ -3080,6 +3292,66 @@ class AIAgentViewModel @Inject constructor(
         } finally {
             runCatching { output.close() }
         }
+    }
+
+    /**
+     * 导出当前会话为 Markdown 文本（用户/助手/工具分行、含时间戳与附件名）。
+     * 供「导出对话」按钮使用：从数据库读取全量消息，不走内存态（避免分页截断）。
+     */
+    fun buildSessionMarkdown(sessionId: String, onResult: (String) -> Unit) = viewModelScope.launch {
+        val md = withContext(Dispatchers.IO) {
+            val session = chatSessionDao.getById(sessionId)
+            val title = session?.title?.takeIf { it.isNotBlank() } ?: "AiVerse 会话"
+            val messages = agentMessageDao.getMessagesBySessionOnce(sessionId)
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            buildString {
+                append("# ").append(title).append("\n\n")
+                append("> 由 AiVerse 导出 · 共 ").append(messages.size).append(" 条消息\n\n")
+                append("---\n\n")
+                for (m in messages) {
+                    if (m.isCompactionMarker) {
+                        append("> *上下文已压缩*\n\n")
+                        continue
+                    }
+                    if (m.isContextSummary) {
+                        append("> *上下文摘要*\n\n")
+                        continue
+                    }
+                    val role = when (m.role) {
+                        "USER" -> "🧑 用户"
+                        "ASSISTANT" -> "🤖 AI"
+                        "TOOL" -> "🔧 工具"
+                        else -> m.role
+                    }
+                    val time = fmt.format(java.util.Date(m.timestamp))
+                    append("## ").append(role).append(" · ").append(time).append("\n\n")
+                    if (m.toolName != null) {
+                        append("**工具调用：** `").append(m.toolName).append("`\n\n")
+                    }
+                    if (m.reasoning?.isNotBlank() == true) {
+                        append("<details><summary>思考过程</summary>\n\n")
+                        append(m.reasoning).append("\n\n</details>\n\n")
+                    }
+                    if (m.content.isNotBlank()) {
+                        append(m.content).append("\n\n")
+                    }
+                    if (!m.attachmentsJson.isNullOrBlank()) {
+                        runCatching {
+                            val atts = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                                .decodeFromString<List<AgentAttachment>>(m.attachmentsJson)
+                            if (atts.isNotEmpty()) {
+                                append("📎 附件：").append(atts.joinToString("、") { it.fileName }).append("\n\n")
+                            }
+                        }
+                    }
+                    if (m.isError) {
+                        append("> ⚠️ 该条消息执行出错\n\n")
+                    }
+                    append("---\n\n")
+                }
+            }
+        }
+        onResult(md)
     }
 
     private suspend fun ensureSession(): String {

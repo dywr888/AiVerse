@@ -17,7 +17,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,6 +33,12 @@ object Spacing {
     val xl = 24.dp
     val xxl = 32.dp
 }
+
+/** 聊天气泡 / 助手消息正文字号（sp），由 [AIEditorTheme] 从外观设置注入。 */
+val LocalChatFontSizeSp = staticCompositionLocalOf { 16 }
+
+/** 底部聊天输入框字号（sp），由 [AIEditorTheme] 从外观设置注入。 */
+val LocalInputFontSizeSp = staticCompositionLocalOf { 16 }
 
 object Radius {
     val xs = 4.dp
@@ -390,6 +398,9 @@ fun AIEditorTheme(
     dynamicColor: Boolean = false,
     iconColorful: Boolean = true,
     bubbleStyle: ChatBubbleStyle = ChatBubbleStyle.CLASSIC_OUTLINE,
+    chatFontSizeSp: Int = 16,
+    inputFontSizeSp: Int = 16,
+    uiFontScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -413,13 +424,20 @@ fun AIEditorTheme(
         LocalAppSemanticColors provides themeColors.semanticColors,
         LocalHyperOSStyle provides isHyperOS,
         LocalIconColorful provides iconColorful,
-        LocalChatBubbleStyle provides bubbleStyle
+        LocalChatBubbleStyle provides bubbleStyle,
+        LocalChatFontSizeSp provides chatFontSizeSp,
+        LocalInputFontSizeSp provides inputFontSizeSp
     ) {
-        MaterialTheme(
-            colorScheme = themeColors.colorScheme,
-            typography = typography,
-            shapes = shapes,
-            content = content
-        )
+        val baseDensity = LocalDensity.current
+        CompositionLocalProvider(
+            LocalDensity provides Density(baseDensity.density, uiFontScale)
+        ) {
+            MaterialTheme(
+                colorScheme = themeColors.colorScheme,
+                typography = typography,
+                shapes = shapes,
+                content = content
+            )
+        }
     }
 }

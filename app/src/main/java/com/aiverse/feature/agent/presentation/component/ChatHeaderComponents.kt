@@ -61,6 +61,7 @@ import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
 import com.aiverse.feature.settings.presentation.component.ModelLogoIcon
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.Download
 import compose.icons.feathericons.GitBranch
 import compose.icons.feathericons.Globe
 import compose.icons.feathericons.Menu
@@ -78,6 +79,7 @@ internal fun ChatHeader(
     onNavigateToTerminal: () -> Unit,
     onNavigateToGit: () -> Unit,
     onNavigateToBrowser: () -> Unit = {},
+    onExportChat: () -> Unit = {},
     currentMode: AgentMode,
     onToggleMode: (AgentMode) -> Unit,
     connectionState: com.aiverse.feature.agent.domain.container.ConnectionState? = null,
@@ -171,6 +173,12 @@ internal fun ChatHeader(
                         contentDescription = stringResource(R.string.chat_new_session),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                WorkbenchIconButton(
+                    icon = FeatherIcons.Download,
+                    contentDescription = stringResource(R.string.chat_export_conversation),
+                    active = false,
+                    onClick = onExportChat
+                )
                 WorkbenchIconButton(
                     icon = FeatherIcons.GitBranch,
                     contentDescription = stringResource(R.string.chat_open_git),

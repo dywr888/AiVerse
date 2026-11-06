@@ -1,12 +1,15 @@
 package com.aiverse.feature.settings.presentation
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiverse.core.net.AppProxy
 import com.aiverse.core.theme.ChatBubbleStyle
+import com.aiverse.core.ui.overlay.OverlayBallService
 import com.aiverse.core.util.ApkInstaller
 import com.aiverse.core.util.FileLogger
 import com.aiverse.core.util.LogLevel
@@ -78,6 +81,8 @@ import com.aiverse.feature.settings.data.repository.ExecutionModeHolder
 import com.aiverse.feature.settings.data.repository.ExecutionModeRepository
 import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
 import com.aiverse.feature.settings.data.repository.AgentSoundSettingsRepository
+import com.aiverse.feature.settings.data.repository.AppearanceSettingsRepository
+import com.aiverse.feature.settings.data.repository.SkillInstallSettingsRepository
 import com.aiverse.feature.settings.data.repository.KeepaliveSettingsRepository
 import com.aiverse.feature.settings.data.repository.LiveNotificationSettingsRepository
 import com.aiverse.feature.settings.data.repository.ApprovalNotificationSettingsRepository
@@ -371,6 +376,8 @@ class SettingsViewModel @Inject constructor(
     private val logSettingsRepository: LogSettingsRepository,
     private val themeSettingsRepository: ThemeSettingsRepository,
     private val backgroundSettingsRepository: BackgroundSettingsRepository,
+    private val appearanceSettingsRepository: AppearanceSettingsRepository,
+    private val skillInstallSettingsRepository: SkillInstallSettingsRepository,
     private val keepaliveSettingsRepository: KeepaliveSettingsRepository,
     private val screenOnSettingsRepository: ScreenOnSettingsRepository,
     private val agentSoundSettingsRepository: AgentSoundSettingsRepository,
@@ -640,6 +647,22 @@ class SettingsViewModel @Inject constructor(
     /** 透明度落盘的节流 job，见 [setBackgroundAlpha]。 */
     private var backgroundAlphaWriteJob: Job? = null
 
+    private val _chatFontSizeSp = MutableStateFlow(AppearanceSettingsRepository.DEFAULT_CHAT_FONT_SIZE_SP)
+    val chatFontSizeSp: StateFlow<Int> = _chatFontSizeSp.asStateFlow()
+
+    private val _inputFontSizeSp = MutableStateFlow(AppearanceSettingsRepository.DEFAULT_INPUT_FONT_SIZE_SP)
+    val inputFontSizeSp: StateFlow<Int> = _inputFontSizeSp.asStateFlow()
+
+    private val _uiFontScale = MutableStateFlow(AppearanceSettingsRepository.DEFAULT_UI_FONT_SCALE)
+    val uiFontScale: StateFlow<Float> = _uiFontScale.asStateFlow()
+
+    /** 三档字号落盘的节流 job（滑块拖动防积压），见 [setChatFontSizeSp] 等。 */
+    private var fontWriteJob: Job? = null
+
+    /** 技能默认安装作用域（默认项目级），由系统提示词注入指引 AI。 */
+    private val _defaultSkillInstallScope = MutableStateFlow(SkillInstallSettingsRepository.DEFAULT_SCOPE)
+    val defaultSkillInstallScope: StateFlow<SkillScope> = _defaultSkillInstallScope.asStateFlow()
+
     /** 用户选择的应用语言 tag（null 表示跟随系统）。 */
     private val _languageTag = MutableStateFlow<String?>(null)
     val languageTag: StateFlow<String?> = _languageTag.asStateFlow()
@@ -721,6 +744,12 @@ class SettingsViewModel @Inject constructor(
 
     private val _globalAutoApprove = MutableStateFlow(false)
     val globalAutoApprove: StateFlow<Boolean> = _globalAutoApprove.asStateFlow()
+
+    private val _overlayBallEnabled = MutableStateFlow(false)
+    val overlayBallEnabled: StateFlow<Boolean> = _overlayBallEnabled.asStateFlow()
+
+    /** 用户开启悬浮球但尚未授予悬浮窗权限时置位；授权页返回后自动启动。 */
+    private var pendingOverlayEnable = false
 
     private val _activeProfileId = MutableStateFlow(ContainerProfile.BUILTIN_ID)
     val activeProfileId: StateFlow<String> = _activeProfileId.asStateFlow()
@@ -1090,6 +1119,30 @@ class SettingsViewModel @Inject constructor(
             }
 
             launch {
+                appearanceSettingsRepository.chatFontSizeSpFlow.collectLatest {
+                    _chatFontSizeSp.value = it
+                }
+            }
+
+            launch {
+                appearanceSettingsRepository.inputFontSizeSpFlow.collectLatest {
+                    _inputFontSizeSp.value = it
+                }
+            }
+
+            launch {
+                appearanceSettingsRepository.uiFontScaleFlow.collectLatest {
+                    _uiFontScale.value = it
+                }
+            }
+
+            launch {
+                skillInstallSettingsRepository.defaultInstallScopeFlow.collectLatest {
+                    _defaultSkillInstallScope.value = it
+                }
+            }
+
+            launch {
                 languageSettingsRepository.languageFlow.collectLatest {
                     _languageTag.value = it
                 }
@@ -1180,6 +1233,12 @@ class SettingsViewModel @Inject constructor(
             launch {
                 toolSafetySettingsRepository.globalAutoApproveFlow.collectLatest {
                     _globalAutoApprove.value = it
+                }
+            }
+
+            launch {
+                toolSafetySettingsRepository.overlayBallEnabledFlow.collectLatest {
+                    _overlayBallEnabled.value = it
                 }
             }
 
@@ -2337,6 +2396,47 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** 设置聊天字体大小（sp）。滑块拖动连续调用，80ms 节流落盘一次。 */
+    fun setChatFontSizeSp(sizeSp: Int) {
+        fontWriteJob?.cancel()
+        fontWriteJob = viewModelScope.launch {
+            delay(BACKGROUND_ALPHA_WRITE_DEBOUNCE_MS)
+            appearanceSettingsRepository.setChatFontSizeSp(sizeSp)
+        }
+    }
+
+    /** 设置输入框字体大小（sp）。 */
+    fun setInputFontSizeSp(sizeSp: Int) {
+        fontWriteJob?.cancel()
+        fontWriteJob = viewModelScope.launch {
+            delay(BACKGROUND_ALPHA_WRITE_DEBOUNCE_MS)
+            appearanceSettingsRepository.setInputFontSizeSp(sizeSp)
+        }
+    }
+
+    /** 设置界面字体缩放系数。 */
+    fun setUiFontScale(scale: Float) {
+        fontWriteJob?.cancel()
+        fontWriteJob = viewModelScope.launch {
+            delay(BACKGROUND_ALPHA_WRITE_DEBOUNCE_MS)
+            appearanceSettingsRepository.setUiFontScale(scale)
+        }
+    }
+
+    /** 恢复外观为默认值（清空三档字号，回到仓库默认）。 */
+    fun restoreAppearanceDefaults() {
+        viewModelScope.launch {
+            appearanceSettingsRepository.restoreFontSizes(null, null, null)
+        }
+    }
+
+    /** 设置技能默认安装作用域（项目/全局），AI 安装技能时遵循。 */
+    fun setDefaultSkillInstallScope(scope: SkillScope) {
+        viewModelScope.launch {
+            skillInstallSettingsRepository.setDefaultInstallScope(scope)
+        }
+    }
+
     /**
      * 切换当前选中的容器 profile，并按其 [ContainerProfile.mode] 同步切全局执行模式。
      *
@@ -3039,6 +3139,45 @@ class SettingsViewModel @Inject constructor(
 
     fun setGlobalAutoApprove(enabled: Boolean) {
         viewModelScope.launch { toolSafetySettingsRepository.setGlobalAutoApprove(enabled) }
+    }
+
+    fun setOverlayBallEnabled(enabled: Boolean) {
+        if (enabled) {
+            if (Settings.canDrawOverlays(context)) {
+                enableOverlayBall()
+            } else {
+                pendingOverlayEnable = true
+                runCatching {
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        } else {
+            pendingOverlayEnable = false
+            viewModelScope.launch {
+                toolSafetySettingsRepository.setOverlayBallEnabled(false)
+                OverlayBallService.hide(context)
+            }
+        }
+    }
+
+    /** 悬浮窗授权页返回后调用：用户曾开启悬浮球且已完成授权时自动启动。 */
+    fun checkPendingOverlayEnable() {
+        if (pendingOverlayEnable && Settings.canDrawOverlays(context)) {
+            pendingOverlayEnable = false
+            enableOverlayBall()
+        }
+    }
+
+    private fun enableOverlayBall() {
+        viewModelScope.launch {
+            toolSafetySettingsRepository.setOverlayBallEnabled(true)
+            OverlayBallService.show(context)
+        }
     }
 }
 

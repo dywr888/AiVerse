@@ -4,9 +4,16 @@ import android.util.Log
 import com.aiverse.feature.agent.data.local.dao.AgentMessageDao
 import com.aiverse.feature.agent.data.local.dao.ChatSessionDao
 import com.aiverse.feature.agent.data.repository.FavoriteRepository
+import com.aiverse.feature.agent.domain.mention.FileMentionRepository
+import com.aiverse.feature.agent.domain.session.SessionUseCase
+import com.aiverse.feature.settings.domain.repository.AIProviderRepository
 import com.aiverse.feature.web.data.WebServerSettingsRepository
+import com.aiverse.feature.web.routes.fileRoutes
 import com.aiverse.feature.web.routes.favoriteRoutes
+import com.aiverse.feature.web.routes.modelRoutes
+import com.aiverse.feature.web.routes.sessionManageRoutes
 import com.aiverse.feature.web.routes.sessionRoutes
+import com.aiverse.feature.workspace.data.repository.WorkspaceRepository
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
@@ -22,6 +29,7 @@ import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.defaultheaders.DefaultHeaders
 import io.ktor.server.routing.routing
 import io.ktor.server.sse.SSE
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +64,12 @@ class WebServerManager @Inject constructor(
     private val sessionDao: ChatSessionDao,
     private val messageDao: AgentMessageDao,
     private val favoriteRepository: FavoriteRepository,
-    private val settingsRepository: WebServerSettingsRepository
+    private val settingsRepository: WebServerSettingsRepository,
+    private val messageBridge: WebMessageBridge,
+    private val sessionUseCase: SessionUseCase,
+    private val providerRepository: AIProviderRepository,
+    private val fileMentionRepository: FileMentionRepository,
+    private val workspaceRepository: WorkspaceRepository
 ) {
     companion object {
         private const val TAG = "WebServerManager"
@@ -80,46 +93,74 @@ class WebServerManager @Inject constructor(
     suspend fun start() {
         if (server != null) return
         _state.value = _state.value.copy(isLoading = true, error = null)
-        // Ktor 启动（bind + 插件初始化）与网络接口枚举都是阻塞 IO，切到 IO 线程避免冻结 Main/UI。
         val result = runCatching {
-            withContext(Dispatchers.IO) {
-                val port = settingsRepository.currentPort()
-                val localhostOnly = settingsRepository.currentLocalhostOnly()
-                val host = if (localhostOnly) "127.0.0.1" else "0.0.0.0"
-                val running = embeddedServer(CIO, port = port, host = host, module = {
-                    install(Compression)
-                    install(CORS) {
-                        allowHeader(HttpHeaders.ContentType)
-                        allowHeader(HttpHeaders.Authorization)
-                        allowNonSimpleContentTypes = true
-                        anyHost()
-                        anyMethod()
-                    }
-                    install(SSE)
-                    install(DefaultHeaders)
-                    install(ContentNegotiation) {
-                        json(Json { ignoreUnknownKeys = true; encodeDefaults = true })
-                    }
-                    routing {
-                        staticResources("/", "static") {
-                            default("index.html")
-                            enableAutoHeadResponse()
-                            singlePageApplication()
+            // 1. 读取设置（suspend，可超时）
+            val port = kotlinx.coroutines.withTimeoutOrNull(5_000L) { settingsRepository.currentPort() }
+                ?: throw IllegalStateException("读取端口设置超时")
+            val localhostOnly = kotlinx.coroutines.withTimeoutOrNull(5_000L) { settingsRepository.currentLocalhostOnly() }
+                ?: throw IllegalStateException("读取监听设置超时")
+            val host = if (localhostOnly) "127.0.0.1" else "0.0.0.0"
+            Log.i(TAG, "Starting web server on $host:$port")
+
+            // 2. 在独立线程创建+启动服务器（embeddedServer/start 是阻塞 Java 代码，
+            //    withTimeoutOrNull 无法中断，必须用 CompletableDeferred + 独立线程）
+            val ready = CompletableDeferred<EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>>()
+            val thread = Thread {
+                try {
+                    Log.i(TAG, "Creating embeddedServer...")
+                    val running = embeddedServer(CIO, port = port, host = host, module = {
+                        install(Compression)
+                        install(CORS) {
+                            allowHeader(HttpHeaders.ContentType)
+                            allowHeader(HttpHeaders.Authorization)
+                            allowNonSimpleContentTypes = true
+                            anyHost()
+                            anyMethod()
                         }
-                        sessionRoutes(sessionDao, messageDao)
-                        favoriteRoutes(favoriteRepository)
-                    }
-                })
-                running.start(wait = false)
-                server = running
-                WebServerState(
-                    isRunning = true,
-                    isLoading = false,
-                    port = port,
-                    localhostOnly = localhostOnly,
-                    lanAddress = if (localhostOnly) null else lanIp()?.let { "http://$it:$port" }
-                )
+                        install(SSE)
+                        install(DefaultHeaders)
+                        install(ContentNegotiation) {
+                            json(Json { ignoreUnknownKeys = true; encodeDefaults = true })
+                        }
+                        routing {
+                            staticResources("/", "static") {
+                                default("index.html")
+                                enableAutoHeadResponse()
+                                singlePageApplication()
+                            }
+                            sessionRoutes(sessionDao, messageDao, messageBridge)
+                            sessionManageRoutes(sessionUseCase)
+                            favoriteRoutes(favoriteRepository)
+                            modelRoutes(providerRepository)
+                            fileRoutes(fileMentionRepository, workspaceRepository)
+                        }
+                    })
+                    Log.i(TAG, "embeddedServer created, calling start(wait=false)...")
+                    running.start(wait = false)
+                    Log.i(TAG, "start(wait=false) returned OK")
+                    ready.complete(running)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Server start thread failed", t)
+                    ready.completeExceptionally(t)
+                }
             }
+            thread.isDaemon = true
+            thread.name = "web-server-start"
+            thread.start()
+
+            val running = kotlinx.coroutines.withTimeoutOrNull(15_000L) { ready.await() }
+                ?: run {
+                    thread.interrupt()
+                    throw java.net.BindException("Web 服务器启动超时（端口 $port 可能被占用）")
+                }
+            server = running
+            WebServerState(
+                isRunning = true,
+                isLoading = false,
+                port = port,
+                localhostOnly = localhostOnly,
+                lanAddress = if (localhostOnly) null else lanIp()?.let { "http://$it:$port" }
+            )
         }
         _state.value = result.getOrElse { t ->
             Log.e(TAG, "Failed to start web server", t)

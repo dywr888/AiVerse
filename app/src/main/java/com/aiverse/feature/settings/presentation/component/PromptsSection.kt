@@ -20,10 +20,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,8 +55,11 @@ import com.aiverse.core.ui.SelectionActionIconButton
 import com.aiverse.core.ui.SwipeToDeleteRow
 import com.aiverse.feature.agent.domain.prompt.PromptFragment
 import com.aiverse.feature.agent.domain.prompt.PromptFragmentSource
+import com.aiverse.feature.agent.domain.skill.SkillScope
 import com.aiverse.feature.settings.presentation.PromptsUiState
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.Box
+import compose.icons.feathericons.Check
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.FileText
 import compose.icons.feathericons.Trash2
@@ -82,6 +87,8 @@ internal data class PromptEditTarget(val number: Int? = null)
 internal fun PromptsSection(
     state: PromptsUiState,
     selection: ListSelectionState,
+    defaultSkillInstallScope: SkillScope,
+    onSetDefaultSkillInstallScope: (SkillScope) -> Unit,
     onOpenFragment: (PromptFragment) -> Unit,
     onDeleteFragment: (Int) -> Unit,
     onReorder: (List<PromptFragment>) -> Unit,
@@ -89,6 +96,7 @@ internal fun PromptsSection(
     onBatchDeleteFragments: (List<Int>) -> Unit
 ) {
     var showBatchDeleteConfirm by remember { mutableStateOf(false) }
+    var showSkillScopeSheet by remember { mutableStateOf(false) }
     // 内置来源的片段删不了，也就不参与多选：勾选框置灰、全选也不会选中它们。
     val selectableKeys = remember(state.fragments) {
         state.fragments.filter { it.editable }.map { it.number.toString() }
@@ -114,6 +122,32 @@ internal fun PromptsSection(
                 subtitle = stringResource(R.string.prompts_disable_builtin_hint),
                 trailing = {
                     AppSwitch(checked = state.builtinDisabled, onCheckedChange = onToggleBuiltinDisabled)
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Box,
+                title = stringResource(R.string.prompt_skill_default_scope),
+                subtitle = stringResource(
+                    if (defaultSkillInstallScope == SkillScope.PROJECT) {
+                        R.string.prompt_skill_scope_project_hint
+                    } else {
+                        R.string.prompt_skill_scope_global_hint
+                    }
+                ),
+                onClick = { showSkillScopeSheet = true },
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            if (defaultSkillInstallScope == SkillScope.PROJECT) {
+                                R.string.prompt_skill_scope_project
+                            } else {
+                                R.string.prompt_skill_scope_global
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.semanticColors.subtleText
+                    )
                 }
             )
         }
@@ -169,6 +203,79 @@ internal fun PromptsSection(
             },
             onDismiss = { showBatchDeleteConfirm = false }
         )
+    }
+
+    if (showSkillScopeSheet) {
+        AlertDialog(
+            onDismissRequest = { showSkillScopeSheet = false },
+            title = { Text(stringResource(R.string.prompt_skill_default_scope)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SkillScopeOptionRow(
+                        scope = SkillScope.PROJECT,
+                        current = defaultSkillInstallScope,
+                        onClick = {
+                            onSetDefaultSkillInstallScope(SkillScope.PROJECT)
+                            showSkillScopeSheet = false
+                        }
+                    )
+                    SkillScopeOptionRow(
+                        scope = SkillScope.GLOBAL,
+                        current = defaultSkillInstallScope,
+                        onClick = {
+                            onSetDefaultSkillInstallScope(SkillScope.GLOBAL)
+                            showSkillScopeSheet = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSkillScopeSheet = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SkillScopeOptionRow(
+    scope: SkillScope,
+    current: SkillScope,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(
+                    if (scope == SkillScope.PROJECT) R.string.prompt_skill_scope_project
+                    else R.string.prompt_skill_scope_global
+                ),
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = stringResource(
+                    if (scope == SkillScope.PROJECT) R.string.prompt_skill_scope_project_hint
+                    else R.string.prompt_skill_scope_global_hint
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.semanticColors.subtleText
+            )
+        }
+        if (scope == current) {
+            Icon(
+                FeatherIcons.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 

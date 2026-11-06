@@ -135,6 +135,7 @@ class StatefulAgentWorkflow @Inject constructor(
         /** 模式提醒提示词：复用 prompts 目录文件（用户可自定义覆盖），切换时随消息注入而非进 system。 */
         const val MODE_REMINDER_PLAN_FILE = "agent/plan-mode.md"
         const val MODE_REMINDER_AUTO_FILE = "agent/auto-mode.md"
+        const val MODE_REMINDER_EXPERT_FILE = "agent/expert-mode.md"
         val LEADING_COMMENT = Regex("(?s)^\\s*<!--.*?-->\\s*")
         /** 模型直出图片落盘目录（与 GenerateImageTool 保持一致）。 */
         const val GENERATED_IMAGE_DIR = "~/.aiverse/generated-images"
@@ -1295,6 +1296,10 @@ class StatefulAgentWorkflow @Inject constructor(
             .replace(LEADING_COMMENT, "")
             .trim()
             .let { "【模式提醒】$it" }
+        AgentMode.EXPERT -> promptProvider.resolvePrompt(MODE_REMINDER_EXPERT_FILE)
+            .replace(LEADING_COMMENT, "")
+            .trim()
+            .let { "【模式提醒】$it" }
         AgentMode.BUILD -> null
     }
 
@@ -1315,6 +1320,7 @@ class StatefulAgentWorkflow @Inject constructor(
             .trim()
         AgentMode.BUILD -> "【模式切换】" + appContext.getString(R.string.plan_mode_approved_build)
         AgentMode.AUTO -> "【模式切换】" + appContext.getString(R.string.plan_mode_approved_auto)
+        AgentMode.EXPERT -> "【模式切换】" + appContext.getString(R.string.plan_mode_approved_expert)
     }
 
     /** 界面手动切换时写入模式通知 detail 的提示，区分计划审批与用户直接切换。 */
@@ -1324,6 +1330,7 @@ class StatefulAgentWorkflow @Inject constructor(
             .trim()
         AgentMode.BUILD -> "【模式切换】" + appContext.getString(R.string.plan_mode_external_build)
         AgentMode.AUTO -> "【模式切换】" + appContext.getString(R.string.plan_mode_external_auto)
+        AgentMode.EXPERT -> "【模式切换】" + appContext.getString(R.string.plan_mode_external_expert)
     }
 
     /**

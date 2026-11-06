@@ -11,49 +11,24 @@ class OnboardingStateHolderTest {
     private fun holder(): OnboardingStateHolder = OnboardingStateHolder()
 
     @Test
-    fun `start activates from OPEN_SIDEBAR`() {
+    fun `start activates from OPEN_TERMINAL`() {
         val h = holder()
         h.start()
         assertTrue(h.isActive)
-        assertEquals(OnboardingStep.OPEN_SIDEBAR, h.state.value.step)
+        assertEquals(OnboardingStep.OPEN_TERMINAL, h.state.value.step)
         assertEquals(OnboardingStatus.IN_PROGRESS, h.state.value.status)
     }
 
     @Test
-    fun `nextStep progresses through full ten-step flow`() {
+    fun `nextStep progresses through full flow`() {
         val h = holder()
         h.start()
-        assertEquals(OnboardingStep.OPEN_SIDEBAR, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.ENTER_SETTINGS, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.CONFIG_PROVIDER, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.PROVIDER_ADD, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.PROVIDER_CONFIG_INFO, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.PROVIDER_FETCH_MODELS, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.SIMULATE_FETCH_DIALOG, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.OPEN_MODEL_PICKER, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.SIMULATE_CHOOSE_MODEL, h.state.value.step)
-
-        h.nextStep()
-        assertEquals(OnboardingStep.SEND_MESSAGE, h.state.value.step)
-        assertTrue(h.isActive)
-
-        h.nextStep() // complete on last step
+        // 从第一步（OPEN_TERMINAL）开始，依次推进所有步骤
+        for (step in OnboardingStep.all) {
+            assertEquals(step, h.state.value.step)
+            h.nextStep()
+        }
+        // 最后一步 nextStep 后完成
         assertFalse(h.isActive)
         assertEquals(OnboardingStatus.COMPLETED, h.state.value.status)
     }

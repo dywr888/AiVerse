@@ -30,6 +30,11 @@ class SyncSettingsRepository @Inject constructor(
     )
     val maxSyncBatchSize: StateFlow<Int> = _maxSyncBatchSize.asStateFlow()
 
+    private val _sshGuideSeen = MutableStateFlow(
+        prefs.getBoolean("ssh_guide_seen", false)
+    )
+    val sshGuideSeen: StateFlow<Boolean> = _sshGuideSeen.asStateFlow()
+
     fun setIgnoredPatterns(patterns: String) {
         prefs.edit { putString("ignored_patterns", patterns) }
         _ignoredPatterns.value = patterns
@@ -43,6 +48,11 @@ class SyncSettingsRepository @Inject constructor(
     fun setMaxSyncBatchSize(size: Int) {
         prefs.edit { putInt("max_sync_batch_size", size) }
         _maxSyncBatchSize.value = size
+    }
+
+    fun setSshGuideSeen(seen: Boolean) {
+        prefs.edit { putBoolean("ssh_guide_seen", seen) }
+        _sshGuideSeen.value = seen
     }
 
     /** 备份快照：同步偏好三键。 */

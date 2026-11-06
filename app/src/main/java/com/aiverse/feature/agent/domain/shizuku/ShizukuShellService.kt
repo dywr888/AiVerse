@@ -19,7 +19,7 @@ class ShizukuShellService : IShizukuShellService.Stub() {
         System.exit(0)
     }
 
-    override fun exec(command: String, timeoutMs: Int): Bundle {
+    override fun exec(command: String, timeoutMs: Int, maxOutputChars: Int): Bundle {
         val result = Bundle()
         var process: Process? = null
         try {
@@ -28,7 +28,8 @@ class ShizukuShellService : IShizukuShellService.Stub() {
                 .start()
             // 输出读取与等待结束必须并行：管道写满会阻塞子进程，先 waitFor 再读会死锁。
             // 同时限幅：Binder 事务缓冲上限 1MB，超大输出直接回传会抛 TransactionTooLargeException。
-            val output = BoundedOutput()
+            // maxOutputChars 由调用方按需指定（截屏等大输出场景），默认通用命令仍走紧凑上限。
+            val output = BoundedOutput.hardCapped(maxOutputChars.coerceAtLeast(MIN_OUTPUT_CHARS))
             val reader = Thread {
                 runCatching {
                     process.inputStream.bufferedReader().useLines { lines ->
@@ -57,7 +58,8 @@ class ShizukuShellService : IShizukuShellService.Stub() {
     companion object {
         const val KEY_OUTPUT = "output"
         const val KEY_EXIT_CODE = "exitCode"
-
+        /** 输出上限的最小值：避免调用方传 0 导致 hardCapped(0) 丢弃全部输出。 */
+        const val MIN_OUTPUT_CHARS = 1_024
         /** 命令超时（进程被强杀）时的退出码。 */
         const val EXIT_TIMEOUT = -1000
 

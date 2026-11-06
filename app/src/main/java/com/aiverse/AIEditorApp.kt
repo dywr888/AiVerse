@@ -11,6 +11,7 @@ import android.os.Process
 import androidx.work.Configuration
 import androidx.hilt.work.HiltWorkerFactory
 import com.aiverse.core.net.AppProxy
+import com.aiverse.core.ui.overlay.OverlayApprovalService
 import com.aiverse.core.util.AILogger
 import com.aiverse.core.util.FileLogger
 import com.aiverse.core.util.TombstoneParser
@@ -393,6 +394,8 @@ class AIEditorApp : Application(), Configuration.Provider {
         }
         // 连接已配置的 MCP server，把其工具注册进 ToolRegistry（内部自有 scope，失败不影响启动）。
         mcpManager.start()
+        // Shizuku 控制手机确认悬浮窗服务：常驻监听待决授权，仅 ShizukuControl 请求时弹出确认，其余时间不占屏幕。
+        startService(Intent(this@AIEditorApp, OverlayApprovalService::class.java))
         // 网页端服务器：不再随 App 自动拉起，由「设置 → 运行环境 → 网页服务器」里的启动/停止控制。
         // 权限规则由 App 启动即常驻订阅（AI 评估随时要读到最新规则）；MCP 配置与技能列表
         // 改由各自消费方（McpManager / 设置页）按需订阅，无需在这里拉起。

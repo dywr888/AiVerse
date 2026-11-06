@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -80,6 +81,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -90,6 +94,7 @@ import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.theme.LocalHyperOSStyle
+import com.aiverse.core.theme.LocalInputFontSizeSp
 import com.aiverse.core.ui.rememberImeBottomInset
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
@@ -533,6 +538,9 @@ internal fun ChatInputBar(
                             inputFieldValue = new
                             onValueChange(new.text)
                         },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = LocalInputFontSizeSp.current.sp
+                        ),
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = INPUT_FIELD_MIN_HEIGHT, max = INPUT_FIELD_MAX_HEIGHT)
@@ -593,45 +601,108 @@ internal fun ChatInputBar(
                             AgentMode.PLAN -> MaterialTheme.colorScheme.primaryContainer
                             AgentMode.AUTO -> MaterialTheme.colorScheme.error
                             AgentMode.BUILD -> MaterialTheme.semanticColors.success
+                            AgentMode.EXPERT -> MaterialTheme.colorScheme.tertiaryContainer
                         }
                         val modeTextColor = when (currentMode) {
                             AgentMode.PLAN -> MaterialTheme.colorScheme.onPrimaryContainer
                             AgentMode.AUTO -> MaterialTheme.colorScheme.onError
                             AgentMode.BUILD -> MaterialTheme.semanticColors.onSuccess
+                            AgentMode.EXPERT -> MaterialTheme.colorScheme.onTertiaryContainer
                         }
                         val modeContext = LocalContext.current
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = modeColor,
-                            modifier = Modifier
-                                .clickable {
-                                    val nextMode = when (currentMode) {
-                                        AgentMode.BUILD -> AgentMode.PLAN
-                                        AgentMode.PLAN -> AgentMode.AUTO
-                                        AgentMode.AUTO -> AgentMode.BUILD
-                                    }
-                                    onToggleMode(nextMode)
-                                    // 切换后提示当前模式状态，避免用户不知道切到了什么。
-                                    Toast.makeText(
-                                        modeContext,
-                                        modeContext.getString(nextMode.switchMessageRes),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                        ) {
-                            Box(
+                        // 模式选择菜单：点击按钮向上展开四个选项（自动/构建/计划/专家），选后才切换，不再循环切换。
+                        var modeMenuExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = modeColor,
                                 modifier = Modifier
-                                    .width(46.dp)
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
+                                    .clickable { modeMenuExpanded = !modeMenuExpanded }
                             ) {
-                                Text(
-                                    text = stringResource(currentMode.labelRes),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = modeTextColor
+                                Box(
+                                    modifier = Modifier
+                                        .width(46.dp)
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(currentMode.labelRes),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = modeTextColor
+                                        )
                                     )
-                                )
+                                }
+                            }
+                            if (modeMenuExpanded) {
+                                Popup(
+                                    alignment = Alignment.BottomStart, // 向上展开
+                                    onDismissRequest = { modeMenuExpanded = false },
+                                    properties = PopupProperties(focusable = true, dismissOnBackPress = true)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shadowElevation = 8.dp,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .width(IntrinsicSize.Min)
+                                                .padding(vertical = 4.dp)
+                                        ) {
+                                            // 菜单顺序：自动 / 构建 / 计划 / 专家
+                                            listOf(
+                                                AgentMode.AUTO,
+                                                AgentMode.BUILD,
+                                                AgentMode.PLAN,
+                                                AgentMode.EXPERT
+                                            ).forEach { m ->
+                                                val selected = m == currentMode
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            modeMenuExpanded = false
+                                                            if (m != currentMode) {
+                                                                onToggleMode(m)
+                                                                // 切换后提示当前模式状态，避免用户不知道切到了什么。
+                                                                Toast.makeText(
+                                                                    modeContext,
+                                                                    modeContext.getString(m.switchMessageRes),
+                                                                    Toast.LENGTH_SHORT
+                                                                ).show()
+                                                            }
+                                                        }
+                                                        .background(
+                                                            if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+                                                        )
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(m.labelRes),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = if (selected) {
+                                                            MaterialTheme.colorScheme.onSecondaryContainer
+                                                        } else {
+                                                            MaterialTheme.colorScheme.onSurface
+                                                        }
+                                                    )
+                                                    if (selected) {
+                                                        Spacer(Modifier.width(Spacing.xs))
+                                                        Icon(
+                                                            FeatherIcons.Check,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         Spacer(Modifier.width(Spacing.xs))

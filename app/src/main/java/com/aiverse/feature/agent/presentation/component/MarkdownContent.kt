@@ -132,7 +132,9 @@ internal fun MarkdownContent(
     loading: (@Composable () -> Unit)? = null,
     /** 长文本虚拟化渲染：正文改用 LazyColumn 逐块渲染（调用方需配合 heightIn 等有限高度约束
      *  才能触发懒加载），避免超大 md 一次性全量组合/测量造成的卡顿。 */
-    lazyScroll: Boolean = false
+    lazyScroll: Boolean = false,
+    /** 聊天字号（外观设置）：非 null 时覆盖正文/列表/引用字号与行高。 */
+    fontSizeSp: Int? = null
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val semantic = MaterialTheme.semanticColors
@@ -150,8 +152,11 @@ internal fun MarkdownContent(
 
     val typography = MaterialTheme.typography
     // compact：正文、列表用 bodySmall，标题降一档，用于思考气泡等次要文本区域
-    val body = if (compact) typography.bodySmall else typography.bodyMedium
-    val bodyLineHeight = if (compact) 18.sp else 20.sp
+    val baseBody = if (compact) typography.bodySmall else typography.bodyMedium
+    // 聊天字号：显式传入时覆盖正文/列表/引用字号与行高；null 保持默认（compact 用 bodySmall）。
+    val body = if (fontSizeSp == null) baseBody
+    else baseBody.copy(fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp + 4).sp)
+    val bodyLineHeight = if (fontSizeSp != null) (fontSizeSp + 4).sp else if (compact) 18.sp else 20.sp
     val codeSize = if (compact) 12.sp else 13.sp
     val mdTypography = markdownTypography(
         h1 = (if (compact) typography.titleMedium else typography.headlineSmall).copy(fontWeight = FontWeight.Bold, color = color),

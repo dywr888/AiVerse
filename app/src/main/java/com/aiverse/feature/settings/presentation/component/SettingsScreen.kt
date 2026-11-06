@@ -47,6 +47,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +66,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aiverse.core.theme.AppThemePreset
 import com.aiverse.core.theme.ChatBubbleStyle
@@ -181,7 +184,8 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Storage(R.string.settings_storage),
     TokenStats(R.string.settings_token_stats_title),
     Backup(R.string.settings_backup),
-    About(R.string.settings_about)
+    About(R.string.settings_about),
+    Appearance(R.string.settings_appearance)
 }
 
 /**
@@ -238,6 +242,16 @@ fun SettingsScreen(
     val currentProjectName by viewModel.currentProjectName.collectAsStateWithLifecycle()
     val disableSafetyInterception by viewModel.disableSafetyInterception.collectAsStateWithLifecycle()
     val globalAutoApprove by viewModel.globalAutoApprove.collectAsStateWithLifecycle()
+    val overlayBallEnabled by viewModel.overlayBallEnabled.collectAsStateWithLifecycle()
+    // 悬浮窗授权页返回后自动启动悬浮球（用户曾开启但未授权时，授权完成后补齐启动）。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.checkPendingOverlayEnable()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val keepaliveEnabled by viewModel.keepaliveEnabled.collectAsStateWithLifecycle()
     val screenOnEnabled by viewModel.screenOnEnabled.collectAsStateWithLifecycle()
     val agentSoundEnabled by viewModel.agentSoundEnabled.collectAsStateWithLifecycle()
@@ -261,6 +275,10 @@ fun SettingsScreen(
     val bubbleStyle by viewModel.bubbleStyle.collectAsStateWithLifecycle()
     val backgroundImagePath by viewModel.backgroundImagePath.collectAsStateWithLifecycle()
     val backgroundAlpha by viewModel.backgroundAlpha.collectAsStateWithLifecycle()
+    val chatFontSizeSp by viewModel.chatFontSizeSp.collectAsStateWithLifecycle()
+    val inputFontSizeSp by viewModel.inputFontSizeSp.collectAsStateWithLifecycle()
+    val uiFontScale by viewModel.uiFontScale.collectAsStateWithLifecycle()
+    val defaultSkillInstallScope by viewModel.defaultSkillInstallScope.collectAsStateWithLifecycle()
     val languageTag by viewModel.languageTag.collectAsStateWithLifecycle()
     val visionProviderId by viewModel.visionProviderId.collectAsStateWithLifecycle()
     val visionModel by viewModel.visionModel.collectAsStateWithLifecycle()
@@ -504,17 +522,10 @@ fun SettingsScreen(
         SettingsMenu(
             scrollState = menuScrollState,
             themeMode = themeMode,
-            themePresetId = themePresetId,
-            dynamicColorEnabled = dynamicColorEnabled,
             terminalSettings = terminalSettings,
             currentLanguageDisplayName = currentLanguageDisplayName,
-            backgroundImagePath = backgroundImagePath,
-            backgroundAlpha = backgroundAlpha,
-            onOpenThemeSheet = { showThemeSheet = true },
             onOpenTerminalSettingsSheet = { showTerminalSettingsSheet = true },
-            onOpenBackgroundSheet = { showBackgroundSheet = true },
             bubbleStyle = bubbleStyle,
-            onOpenBubbleStyleSheet = { showBubbleStyleSheet = true },
             onOpenLanguageSheet = { showLanguageSheet = true },
             onOpenManual = {
                 context.startActivity(
@@ -969,6 +980,24 @@ fun SettingsScreen(
                     deleteExternalWorkspaceSessions = deleteExternalWorkspaceSessions,
                     onToggleDeleteExternalWorkspaceSessions = { viewModel.setDeleteExternalWorkspaceSessions(it) }
                 )
+                SettingsSection.Appearance -> AppearanceSettingsSection(
+                    themeMode = themeMode,
+                    themePresetId = themePresetId,
+                    dynamicColorEnabled = dynamicColorEnabled,
+                    bubbleStyle = bubbleStyle,
+                    backgroundImagePath = backgroundImagePath,
+                    backgroundAlpha = backgroundAlpha,
+                    chatFontSizeSp = chatFontSizeSp,
+                    inputFontSizeSp = inputFontSizeSp,
+                    uiFontScale = uiFontScale,
+                    onOpenThemeSheet = { showThemeSheet = true },
+                    onOpenBackgroundSheet = { showBackgroundSheet = true },
+                    onOpenBubbleStyleSheet = { showBubbleStyleSheet = true },
+                    onSetChatFontSizeSp = { viewModel.setChatFontSizeSp(it) },
+                    onSetInputFontSizeSp = { viewModel.setInputFontSizeSp(it) },
+                    onSetUiFontScale = { viewModel.setUiFontScale(it) },
+                    onRestoreDefaults = { viewModel.restoreAppearanceDefaults() }
+                )
                 SettingsSection.Providers -> ProvidersSection(
                     providers = providers,
                     selection = selectionFor(SettingsSection.Providers),
@@ -1049,6 +1078,8 @@ fun SettingsScreen(
                     PromptsSection(
                         state = promptsState,
                         selection = selectionFor(SettingsSection.Prompts),
+                        defaultSkillInstallScope = defaultSkillInstallScope,
+                        onSetDefaultSkillInstallScope = { viewModel.setDefaultSkillInstallScope(it) },
                         onOpenFragment = { fragment ->
                             selectionFor(SettingsSection.Prompts).exit()
                             selectedPrompt = fragment
@@ -1209,7 +1240,9 @@ fun SettingsScreen(
                         shizukuState = shizukuState,
                         onRequestShizukuPermission = { shizukuViewModel.requestPermission() },
                         onOpenShizuku = { shizukuViewModel.openShizukuApp() },
-                        onRefreshShizuku = { shizukuViewModel.refresh() }
+                        onRefreshShizuku = { shizukuViewModel.refresh() },
+                        overlayBallEnabled = overlayBallEnabled,
+                        onToggleOverlayBall = { viewModel.setOverlayBallEnabled(it) }
                     )
                 }
                 SettingsSection.BackgroundRun -> BackgroundRunSection(
@@ -1691,17 +1724,10 @@ private fun SettingsDetailPlaceholder() {
 internal fun SettingsMenu(
     scrollState: ScrollState,
     themeMode: AppThemeMode,
-    themePresetId: String?,
-    dynamicColorEnabled: Boolean,
     terminalSettings: TerminalSettings,
     currentLanguageDisplayName: String,
-    backgroundImagePath: String?,
-    backgroundAlpha: Float,
-    onOpenThemeSheet: () -> Unit,
-    onOpenTerminalSettingsSheet: () -> Unit,
-    onOpenBackgroundSheet: () -> Unit,
     bubbleStyle: ChatBubbleStyle,
-    onOpenBubbleStyleSheet: () -> Unit,
+    onOpenTerminalSettingsSheet: () -> Unit,
     onOpenLanguageSheet: () -> Unit,
     onOpenManual: () -> Unit,
     onRerunOnboarding: () -> Unit,
@@ -1725,21 +1751,10 @@ internal fun SettingsMenu(
             )
             SettingsDivider()
             SettingsRow(
-                icon = FeatherIcons.Moon,
-                title = stringResource(R.string.settings_theme_title),
-                onClick = onOpenThemeSheet,
-                trailing = {
-                    val colorLabel = if (dynamicColorEnabled && isDynamicColorSupported) {
-                        stringResource(R.string.theme_dynamic_color)
-                    } else {
-                        stringResource(AppThemePreset.findById(themePresetId).nameRes)
-                    }
-                    Text(
-                        text = "${stringResource(themeMode.labelRes)} · $colorLabel",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.semanticColors.subtleText
-                    )
-                }
+                icon = FeatherIcons.Sliders,
+                title = stringResource(R.string.settings_appearance),
+                subtitle = "${stringResource(themeMode.labelRes)} · ${stringResource(bubbleStyle.labelRes)}",
+                onClick = { onOpen(SettingsSection.Appearance) }
             )
             SettingsDivider()
             SettingsRow(
@@ -1754,28 +1769,6 @@ internal fun SettingsMenu(
                     )
                 }
             )
-            SettingsDivider()
-            SettingsRow(
-                icon = FeatherIcons.Image,
-                title = stringResource(R.string.settings_background_image),
-                onClick = onOpenBackgroundSheet,
-                trailing = {
-                    Text(
-                        text = if (backgroundImagePath != null) "${BackgroundSettingsRepository.alphaToSlider(backgroundAlpha).toInt()}%"
-                        else stringResource(R.string.settings_background_image_none),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.semanticColors.subtleText
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = FeatherIcons.MessageSquare,
-                title = stringResource(R.string.settings_chat_bubble),
-                subtitle = stringResource(bubbleStyle.labelRes),
-                onClick = onOpenBubbleStyleSheet
-            )
-            SettingsDivider()
             SettingsRow(
                 icon = FeatherIcons.Globe,
                 title = stringResource(R.string.settings_language),

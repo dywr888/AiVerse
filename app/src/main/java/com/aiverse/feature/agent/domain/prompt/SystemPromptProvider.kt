@@ -10,16 +10,20 @@ import com.aiverse.feature.agent.domain.model.AgentContext
 import com.aiverse.feature.agent.domain.model.AgentMode
 import com.aiverse.feature.agent.domain.model.GoalStatus
 import com.aiverse.feature.agent.domain.skill.SkillRepository
+import com.aiverse.feature.agent.domain.skill.SkillScope
 import com.aiverse.feature.agent.domain.subagent.AgentDefinition
 import com.aiverse.feature.agent.domain.subagent.AgentDefinitionRepository
 import com.aiverse.feature.agent.domain.subagent.InjectPart
 import com.aiverse.feature.settings.data.repository.ExecutionMode
 import com.aiverse.feature.settings.data.repository.ExecutionModeHolder
+import com.aiverse.feature.settings.data.repository.SkillInstallSettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * 按模块组装系统提示词：稳定基线放最前（享受 KV Cache），仅日期为低频变化。
@@ -36,6 +40,7 @@ import javax.inject.Singleton
 class SystemPromptProvider @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val skillRepository: SkillRepository,
+    private val skillInstallSettingsRepository: SkillInstallSettingsRepository,
     private val memoryRepository: MemoryRepository,
     private val promptFragmentCatalog: PromptFragmentCatalog,
     private val containerInstaller: ContainerInstaller,
@@ -319,6 +324,7 @@ class SystemPromptProvider @Inject constructor(
             workspaceContent,
             environmentContent,
             currentDate(),
+            skillInstallScopeLabel(),
             goal = renderGoalBlock(agentContext)
         )
 
@@ -352,6 +358,7 @@ class SystemPromptProvider @Inject constructor(
             workspaceSource.build(ctx),
             environmentSource.build(ctx),
             currentDate(),
+            skillInstallScopeLabel(),
             goal = renderGoalBlock(ctx)
         )
     }
@@ -388,7 +395,8 @@ class SystemPromptProvider @Inject constructor(
                 projectRules?.project,
                 workspaceSource.build(agentContext),
                 environmentSource.build(agentContext),
-                currentDate()
+                currentDate(),
+                skillInstallScopeLabel()
             )
         )
 
@@ -425,6 +433,7 @@ class SystemPromptProvider @Inject constructor(
                 workspaceSource.build(agentContext),
                 environmentSource.build(agentContext),
                 currentDate(),
+                skillInstallScopeLabel(),
                 definition.name
             )
         )
@@ -442,11 +451,13 @@ class SystemPromptProvider @Inject constructor(
         workspace: String,
         environment: String,
         date: String,
+        skillInstallScope: String,
         subAgentName: String = "",
         goal: String? = null
     ): String {
         var out = text
         out = out.replace(SKILLS_VAR, skills.orEmpty())
+        out = out.replace(SKILL_INSTALL_SCOPE_VAR, skillInstallScope)
         out = out.replace(MEMORY_GLOBAL_VAR, memoryGlobal.orEmpty())
         out = out.replace(MEMORY_PROJECT_VAR, memoryProject.orEmpty())
         out = out.replace(SUBAGENTS_VAR, subAgents.orEmpty())
@@ -463,6 +474,12 @@ class SystemPromptProvider @Inject constructor(
 
     private fun currentDate(): String =
         java.time.ZonedDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+
+    /** 技能默认安装作用域（由用户在设置→提示词中选择）的友好名称，注入 {{AIVERSE_SKILL_DEFAULT_SCOPE}}。 */
+    private fun skillInstallScopeLabel(): String {
+        val scope = runBlocking { skillInstallSettingsRepository.defaultInstallScopeFlow.first() }
+        return if (scope == SkillScope.GLOBAL) "全局" else "项目（当前工作区）"
+    }
 
     /** 会话目标注入块：仅当会话处于 goal 自主循环（ACTIVE）时非空；文本取自 prompts/agent/goal.md，用户可覆盖。 */
     private fun renderGoalBlock(ctx: AgentContext): String? {
@@ -517,6 +534,7 @@ class SystemPromptProvider @Inject constructor(
         /** 内置静态基线：数字身份 → 规范文件名，决定默认拼接顺序。 */
         // 片段里可用的运行期变量，渲染时替换为真实内容
         const val SKILLS_VAR = "{{AIVERSE_SKILLS}}"
+        const val SKILL_INSTALL_SCOPE_VAR = "{{AIVERSE_SKILL_DEFAULT_SCOPE}}"
         const val MEMORY_GLOBAL_VAR = "{{AIVERSE_MEMORY_GLOBAL}}"
         const val MEMORY_PROJECT_VAR = "{{AIVERSE_MEMORY_PROJECT}}"
         const val SUBAGENTS_VAR = "{{AIVERSE_SUBAGENTS}}"

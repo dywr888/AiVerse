@@ -31,11 +31,11 @@ class UpdateCheckSettingsRepository @Inject constructor(
             prefs.edit().putBoolean(KEY_ENABLED, value).apply()
         }
 
-    /** 更新通道，默认稳定版。 */
+    /** 更新通道，默认测试版（含预览版）。 */
     var channel: UpdateChannel
         get() = prefs.getString(KEY_CHANNEL, null)
             ?.let { runCatching { UpdateChannel.valueOf(it) }.getOrNull() }
-            ?: UpdateChannel.STABLE
+            ?: UpdateChannel.LATEST
         set(value) {
             prefs.edit().putString(KEY_CHANNEL, value.name).apply()
         }
