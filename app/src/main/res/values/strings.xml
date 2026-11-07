@@ -191,6 +191,18 @@
     <string name="settings_backup">备份与还原</string>
     <string name="settings_about">关于</string>
     <string name="settings_memory">记忆</string>
+    <string name="settings_plugins">脚本插件</string>
+    <string name="plugins_install">安装插件</string>
+    <string name="plugins_empty">尚未安装脚本插件，点击右上角安装 zip 插件包</string>
+    <string name="plugins_uninstall">卸载</string>
+    <string name="plugins_cancel">取消</string>
+    <string name="plugins_confirm_uninstall_title">卸载插件</string>
+    <string name="plugins_confirm_uninstall_message">确定卸载「%1$s」吗？此操作会删除插件文件。</string>
+    <string name="plugins_installed_enabled">已安装并启用 %1$s</string>
+    <string name="plugins_installed_dangerous">已安装 %1$s，含危险权限，请确认后启用</string>
+    <string name="plugins_uninstalled">已卸载</string>
+    <string name="plugins_error_read_zip">无法读取所选文件</string>
+    <string name="plugins_error_not_found">插件不存在</string>
     <string name="settings_language">语言</string>
     <string name="settings_token_stats_title">Token 统计</string>
 

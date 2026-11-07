@@ -387,6 +387,9 @@ dependencies {
     // Kotlin 序列化
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
+    // QuickJS JS 引擎（脚本插件系统）：每插件一个隔离运行时，注入 ctx API，含 arm64-v8a + x86_64 .so
+    implementation("io.github.taoweiji.quickjs:quickjs-android:1.4.6")
+
     // YAML 解析 (用于 Skill Frontmatter)
     implementation("org.yaml:snakeyaml:2.2")
 

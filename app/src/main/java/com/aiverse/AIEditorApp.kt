@@ -241,6 +241,10 @@ class AIEditorApp : Application(), Configuration.Provider {
     @Inject
     lateinit var providerProxyRegistry: com.aiverse.feature.settings.data.repository.ProviderProxyRegistry
 
+    /** 脚本插件总管：启动即异步同步已启用插件的工具注册。 */
+    @Inject
+    lateinit var pluginManager: com.aiverse.feature.plugins.domain.PluginManager
+
     /** 长驻作用域：持续把持久化的日志等级同步到 FileLogger。 */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -278,6 +282,10 @@ class AIEditorApp : Application(), Configuration.Provider {
         // 启动即释放套餐余量示例脚本等内置脚本到 ~/.aiverse/scripts/
         appScope.launch {
             ContainerInstaller.extractScripts(this@AIEditorApp)
+        }
+        // 启动即异步同步已启用脚本插件的工具（QuickJS 加载放 IO，不阻塞首屏）。
+        appScope.launch {
+            pluginManager.syncEnabled()
         }
         // 启动即释放内置子代理定义（Explore）到 ~/.aiverse/agents/；已存在不覆盖，用户改过或删掉都不会被升级拉回。
         appScope.launch {

@@ -189,6 +189,18 @@
     <string name="settings_backup">Backup &amp; Restore</string>
     <string name="settings_about">About</string>
     <string name="settings_memory">Memory</string>
+    <string name="settings_plugins">Script Plugins</string>
+    <string name="plugins_install">Install</string>
+    <string name="plugins_empty">No script plugins installed. Tap install to add a zip package.</string>
+    <string name="plugins_uninstall">Uninstall</string>
+    <string name="plugins_cancel">Cancel</string>
+    <string name="plugins_confirm_uninstall_title">Uninstall Plugin</string>
+    <string name="plugins_confirm_uninstall_message">Uninstall "%1$s"? This will delete the plugin files.</string>
+    <string name="plugins_installed_enabled">Installed and enabled %1$s</string>
+    <string name="plugins_installed_dangerous">Installed %1$s with dangerous permissions. Review and enable it.</string>
+    <string name="plugins_uninstalled">Uninstalled</string>
+    <string name="plugins_error_read_zip">Cannot read the selected file</string>
+    <string name="plugins_error_not_found">Plugin not found</string>
     <string name="settings_language">Language</string>
     <string name="settings_token_stats_title">Token Stats</string>
 

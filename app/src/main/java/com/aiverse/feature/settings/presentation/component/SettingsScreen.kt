@@ -138,6 +138,7 @@ import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
 import com.aiverse.feature.settings.data.local.ProviderPreset
 import com.aiverse.feature.terminal.data.repository.TerminalSettings
+import com.aiverse.feature.plugins.presentation.PluginListSection
 import com.aiverse.feature.terminal.presentation.component.TerminalSettingsSheet
 
 /** 使用手册在线文档站地址。 */
@@ -185,7 +186,8 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     TokenStats(R.string.settings_token_stats_title),
     Backup(R.string.settings_backup),
     About(R.string.settings_about),
-    Appearance(R.string.settings_appearance)
+    Appearance(R.string.settings_appearance),
+    Plugins(R.string.settings_plugins)
 }
 
 /**
@@ -1284,6 +1286,11 @@ fun SettingsScreen(
                         androidx.hilt.navigation.compose.hiltViewModel()
                     MemorySection(viewModel = memoryViewModel)
                 }
+                SettingsSection.Plugins -> {
+                    val pluginsViewModel: com.aiverse.feature.plugins.presentation.PluginListViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    PluginListSection(viewModel = pluginsViewModel)
+                }
                 SettingsSection.About -> AboutSection(
                     updateCheckEnabled = updateCheckEnabled,
                     updateCheckChannel = updateCheckChannel,
@@ -1812,6 +1819,12 @@ internal fun SettingsMenu(
                 icon = FeatherIcons.Book,
                 title = stringResource(SettingsSection.Skills.titleRes),
                 onClick = { onOpen(SettingsSection.Skills) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Box,
+                title = stringResource(SettingsSection.Plugins.titleRes),
+                onClick = { onOpen(SettingsSection.Plugins) }
             )
             SettingsDivider()
             SettingsRow(

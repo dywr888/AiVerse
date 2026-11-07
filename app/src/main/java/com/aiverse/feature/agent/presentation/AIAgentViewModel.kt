@@ -2292,7 +2292,9 @@ class AIAgentViewModel @Inject constructor(
                 isSub -> allTools.filterNot { it.name == AgentDefinition.NESTED_TOOL }
                 else -> allTools.filterNot {
                     it.name == AgentDefinition.PARENT_MESSAGE_TOOL ||
-                        it.name == AgentDefinition.PEER_MESSAGE_TOOL
+                        it.name == AgentDefinition.PEER_MESSAGE_TOOL ||
+                        // 专家模式专属的 PR 审查工具：仅 EXPERT 主会话暴露，其他模式剔除。
+                        (mode != AgentMode.EXPERT && it.name == "reviewPr")
                 }
             }.let { list ->
                 // goal 自主循环期间禁用 PLAN（其退出门禁需人工审查）；非 goal 期间不暴露 goalStatus 工具。

@@ -47,6 +47,7 @@ import com.aiverse.feature.agent.domain.tool.remote.SshReadTool
 import com.aiverse.feature.agent.domain.tool.remote.SshRmTool
 import com.aiverse.feature.agent.domain.tool.remote.SshTailTool
 import com.aiverse.feature.agent.domain.tool.remote.SshUploadTool
+import com.aiverse.feature.agent.domain.tool.review.ReviewPrTool
 import com.aiverse.feature.agent.domain.tool.review.ReviewTool
 import com.aiverse.feature.agent.domain.tool.shizuku.ShizukuTool
 import com.aiverse.feature.agent.domain.tool.shizuku.ShizukuControlTool
@@ -398,7 +399,8 @@ object AgentModule {
         messageParentTool: MessageParentTool,
         messagePeerTool: MessagePeerTool,
         browserTool: BrowserTool,
-        reviewTool: ReviewTool
+        reviewTool: ReviewTool,
+        reviewPrTool: ReviewPrTool
     ): ToolRegistry {
         return ToolRegistry().apply {
             register("readFile", readFileTool)
@@ -435,6 +437,7 @@ object AgentModule {
             register("messagePeer", messagePeerTool)
             register("browser", browserTool)
             register("review", reviewTool)
+            register("reviewPr", reviewPrTool)
         }
     }
 
