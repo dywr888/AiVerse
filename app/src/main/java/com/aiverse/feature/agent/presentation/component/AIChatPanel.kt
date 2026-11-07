@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aiverse.R
 import com.aiverse.core.theme.Spacing
+import com.aiverse.core.tts.LocalTtsController
 import com.aiverse.core.ui.ImageViewerHost
 import com.aiverse.core.ui.LocalImageViewer
 import com.aiverse.core.ui.readableContentMaxWidth
@@ -104,6 +105,7 @@ import compose.icons.FeatherIcons
 import compose.icons.feathericons.ArrowDown
 import java.io.File
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -829,6 +831,23 @@ fun AIChatPanel(
     }
 
     val isBusy = agentState is AgentUIState.Loading || agentState is AgentUIState.Streaming
+    // 自动朗读：回复生成完成（isBusy 下降沿）且开关开启时，朗读最后一条助手消息。
+    val autoRead by viewModel.ttsController.autoReadFlow.collectAsStateWithLifecycle(initialValue = false)
+    val prevBusyForTts = remember { mutableStateOf(false) }
+    LaunchedEffect(isBusy) {
+        if (prevBusyForTts.value && !isBusy && autoRead) {
+            val last = messages.lastOrNull {
+                it.role == MessageRole.ASSISTANT && it.content.hasVisibleContent()
+            }
+            if (last != null) viewModel.ttsController.play(last.id, last.content)
+        }
+        prevBusyForTts.value = isBusy
+    }
+    LaunchedEffect(Unit) {
+        viewModel.ttsController.errorMessage.collect { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
     // 拆块 + 工具分组：超长助手消息展开成多条有界 item（单条滚动轴、外观连续），
     // 连续的工具调用折成一个「N 次工具调用」分组；chatItems 的顺序即 LazyColumn item 顺序。
     // 提到这里（而不是 LazyColumn 分支内）是因为 isFarFromBottom 的「布局是否对应当前消息」判定
@@ -1548,6 +1567,7 @@ fun AIChatPanel(
             else -> {
                 val message = item.message
                 val live = runningTool.firstOrNull { it.messageId == message.id }?.text
+                CompositionLocalProvider(LocalTtsController provides viewModel.ttsController) {
                 AgentMessageItem(
                     message = message,
                     showActions = message.id in actionableMessageIds,
@@ -1573,6 +1593,7 @@ fun AIChatPanel(
                     turnUsage = turnUsages[message.id],
                     entryDelayMs = messageEntryDelays[message.id]
                 )
+                }
             }
         }
     }

@@ -109,6 +109,7 @@ import compose.icons.feathericons.Book
 import compose.icons.feathericons.Database
 import compose.icons.feathericons.BookOpen
 import compose.icons.feathericons.Box
+import compose.icons.feathericons.Volume2
 import compose.icons.feathericons.Cloud
 import compose.icons.feathericons.Cpu
 import compose.icons.feathericons.Download
@@ -187,7 +188,8 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Backup(R.string.settings_backup),
     About(R.string.settings_about),
     Appearance(R.string.settings_appearance),
-    Plugins(R.string.settings_plugins)
+    Plugins(R.string.settings_plugins),
+    Tts(R.string.settings_tts)
 }
 
 /**
@@ -1291,6 +1293,11 @@ fun SettingsScreen(
                         androidx.hilt.navigation.compose.hiltViewModel()
                     PluginListSection(viewModel = pluginsViewModel)
                 }
+                SettingsSection.Tts -> {
+                    val ttsViewModel: com.aiverse.feature.settings.presentation.TtsSettingsViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    TtsSettingsSection(viewModel = ttsViewModel)
+                }
                 SettingsSection.About -> AboutSection(
                     updateCheckEnabled = updateCheckEnabled,
                     updateCheckChannel = updateCheckChannel,
@@ -1825,6 +1832,12 @@ internal fun SettingsMenu(
                 icon = FeatherIcons.Box,
                 title = stringResource(SettingsSection.Plugins.titleRes),
                 onClick = { onOpen(SettingsSection.Plugins) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Volume2,
+                title = stringResource(SettingsSection.Tts.titleRes),
+                onClick = { onOpen(SettingsSection.Tts) }
             )
             SettingsDivider()
             SettingsRow(

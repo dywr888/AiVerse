@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +66,7 @@ import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.theme.LocalChatBubbleStyle
 import com.aiverse.core.theme.LocalChatFontSizeSp
+import com.aiverse.core.tts.LocalTtsController
 import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ContentWidth
 import com.aiverse.core.ui.ExpandableChevronIcon
@@ -80,7 +83,10 @@ import compose.icons.feathericons.Copy
 import compose.icons.feathericons.Database
 import compose.icons.feathericons.MoreHorizontal
 import compose.icons.feathericons.RotateCcw
+import compose.icons.feathericons.Square
+import compose.icons.feathericons.Volume2
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -277,6 +283,10 @@ internal fun AgentMessageItem(
     var copied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val copyScope = rememberCoroutineScope()
+    val ttsController = LocalTtsController.current
+    val speakingId by (ttsController?.currentMessageId ?: MutableStateFlow<String?>(null)).collectAsState()
+    val ttsPlaying by (ttsController?.isPlaying ?: MutableStateFlow(false)).collectAsState()
+    val isThisSpeaking = speakingId == message.id && ttsPlaying
 
     // 工具卡片入场：只对本次浏览期间新追加进来的消息播（entryDelayMs 非空），
     // 历史、切页返回、item 回收重挂载都直接显示（谁该入场由 MessageEntryScheduler 定）。
@@ -413,7 +423,15 @@ internal fun AgentMessageItem(
                                     MarkdownContent(
                                         text = contentSlice ?: message.content,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .then(
+                                                if (isThisSpeaking) Modifier
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+                                                else Modifier
+                                            ),
                                         cache = markdownCache,
                                         fontSizeSp = chatFontSizeSp
                                     )
@@ -444,13 +462,23 @@ internal fun AgentMessageItem(
                 val durationText = taskDurationMs?.let { formatTaskDuration(it) }
                 val hasMeta = isUser || tokenStats != null || cacheHitRate != null || durationText != null
                 val actionsVisible = isUser || showActions
+                val canSpeak = !isUser && ttsController != null && hasContent && isChunkFooter
                 if ((hasContent || hasAttachments) && message.role != MessageRole.TOOL && isChunkFooter &&
-                    (actionsVisible || hasMeta)
+                    (actionsVisible || hasMeta || canSpeak)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
                         // 排过内容才补间隔，否则本行首个元素会被凭空缩进一格
                         var emitted = false
+                        if (canSpeak) {
+                            MessageActionIconButton(
+                                icon = if (isThisSpeaking) FeatherIcons.Square else FeatherIcons.Volume2,
+                                contentDescription = stringResource(if (isThisSpeaking) R.string.tts_stop else R.string.tts_play),
+                                tint = if (isThisSpeaking) MaterialTheme.colorScheme.primary else iconTint,
+                                onClick = { ttsController!!.toggle(message.id, message.content) }
+                            )
+                            emitted = true
+                        }
                         // 用户消息：时间戳排在复制按钮之前（对齐参考图里气泡下方的「17:55 ⧉」）
                         if (isUser) {
                             ChatMetaText(text = formatClockTime(message.timestamp))

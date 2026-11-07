@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiverse.MainActivity
 import com.aiverse.R
+import com.aiverse.core.tts.TtsController
 import com.aiverse.core.util.FileLogger
 import com.aiverse.core.util.GitIgnoreMatcher
 import com.aiverse.core.util.toUserMessage
@@ -198,6 +199,7 @@ class AIAgentViewModel @Inject constructor(
     private val inputBarSettingsRepository: InputBarSettingsRepository,
     private val balanceSettingsRepository: BalanceSettingsRepository,
     private val balanceFetcher: BalanceFetcher,
+    val ttsController: TtsController,
     @param:ApplicationContext private val context: Context
 ) : ViewModel(), SlashCommandContext {
 
