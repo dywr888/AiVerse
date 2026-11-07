@@ -132,4 +132,3 @@ jobs:
           prerelease: ${{ steps.version.outputs.prerelease }}
           name: "v${{ steps.version.outputs.full }}"
           tag_name: "v${{ steps.version.outputs.full }}"
-
