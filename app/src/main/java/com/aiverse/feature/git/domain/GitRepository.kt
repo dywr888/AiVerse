@@ -266,14 +266,38 @@ class GitRepository @Inject constructor(
 
     /** 最近 [limit] 条提交。 */
     suspend fun log(limit: Int = 50): List<GitCommit> {
-        val raw = git("log", "--pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s", "-n", limit.toString())
+        // %x1e 为提交间分隔（record separator），%x1f 为字段分隔；body(%b) 多行不再破坏按提交解析。
+        // Co-authored-by 从 body 按行解析（兼容所有 git 版本，不依赖 %(trailers) 占位符）。
+        val raw = git(
+            "log",
+            "-z",
+            "--pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%b",
+            "-n", limit.toString()
+        )
         if (raw.isBlank() || raw.startsWith("fatal:")) return emptyList()
-        return raw.split('\n').mapNotNull { line ->
-            val parts = line.removeSuffix("\r").split('\u001f')
+        return raw.split('\u0000').mapNotNull { rec ->
+            if (rec.isBlank()) return@mapNotNull null
+            val parts = rec.removeSuffix("\r").split('\u001f')
             if (parts.size < 5) null
-            else GitCommit(parts[0], parts[1], parts[2], parts[3], parts[4])
+            else GitCommit(
+                hash = parts[0],
+                shortHash = parts[1],
+                author = parts[2],
+                date = parts[3],
+                message = parts[4],
+                coAuthors = parseCoAuthorsFromBody(parts.getOrNull(5).orEmpty())
+            )
         }
     }
+
+    /** 从 body 文本解析 `Co-authored-by: Name <email>` 行 → 协作作者名（`Name <email>` → `Name`）。 */
+    private fun parseCoAuthorsFromBody(body: String): List<String> =
+        body.lines()
+            .map { it.trim() }
+            .filter { it.startsWith("Co-authored-by:", ignoreCase = true) }
+            .map { it.substringAfter(":").trim() }
+            .map { it.substringBefore('<').trim().ifEmpty { it } }
+            .filter { it.isNotEmpty() }
 
     /**
      * 拓扑图视图：提交（含父哈希）+ 引用（分支/标签）+ 泳道布局。
@@ -312,7 +336,7 @@ class GitRepository @Inject constructor(
         limit: Int = GRAPH_PAGE_SIZE
     ): GitGraph = withContext(Dispatchers.Default) {
         val skip = existingCommits.size
-        val logRaw = runCatching { git("log", "--pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%P%x1f%b", "--skip", skip.toString(), "-n", limit.toString()) }
+        val logRaw = runCatching { git("log", "-z", "--pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%P%x1f%b", "--skip", skip.toString(), "-n", limit.toString()) }
             .getOrDefault("")
         if (logRaw.isBlank() || logRaw.startsWith("fatal:")) {
             return@withContext if (existingCommits.isEmpty()) GitGraph.EMPTY

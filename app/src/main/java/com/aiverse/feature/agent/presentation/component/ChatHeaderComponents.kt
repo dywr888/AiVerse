@@ -79,14 +79,15 @@ internal fun ChatHeader(
     onNavigateToTerminal: () -> Unit,
     onNavigateToGit: () -> Unit,
     onNavigateToBrowser: () -> Unit = {},
-    onExportChat: () -> Unit = {},
     currentMode: AgentMode,
     onToggleMode: (AgentMode) -> Unit,
     connectionState: com.aiverse.feature.agent.domain.container.ConnectionState? = null,
     showMenuButton: Boolean = true,
     terminalActive: Boolean = false,
     gitActive: Boolean = false,
-    browserActive: Boolean = false
+    browserActive: Boolean = false,
+    /** 右上角思考强度入口（闪电图标 + 弹层），由 AIChatPanel 传入 ReasoningEffortSelector。 */
+    reasoningEntrance: @Composable () -> Unit = {}
 ) {
     Surface(
         color = MaterialTheme.colorScheme.background
@@ -174,12 +175,6 @@ internal fun ChatHeader(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 WorkbenchIconButton(
-                    icon = FeatherIcons.Download,
-                    contentDescription = stringResource(R.string.chat_export_conversation),
-                    active = false,
-                    onClick = onExportChat
-                )
-                WorkbenchIconButton(
                     icon = FeatherIcons.GitBranch,
                     contentDescription = stringResource(R.string.chat_open_git),
                     active = gitActive,
@@ -192,6 +187,8 @@ internal fun ChatHeader(
                     onClick = onNavigateToTerminal,
                     modifier = Modifier.onboardingTarget(OnboardingStep.OPEN_TERMINAL)
                 )
+                // 思考强度入口（右上角）
+                reasoningEntrance()
             }
             // 远程模式：左边 SSH 连接状态，右边 token 累计统计
             if (connectionState != null) {

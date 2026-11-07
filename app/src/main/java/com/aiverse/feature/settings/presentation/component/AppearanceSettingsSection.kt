@@ -26,13 +26,25 @@ import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.isDynamicColorSupported
 import com.aiverse.core.theme.semanticColors
+import com.aiverse.core.ui.AppSwitch
+import com.aiverse.feature.settings.data.repository.InputBarPrefs
 import com.aiverse.feature.settings.data.repository.AppThemeMode
 import com.aiverse.feature.settings.data.repository.BackgroundSettingsRepository
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.Box
+import compose.icons.feathericons.ChevronUp
+import compose.icons.feathericons.Cpu
+import compose.icons.feathericons.Folder
+import compose.icons.feathericons.Globe
 import compose.icons.feathericons.Image
 import compose.icons.feathericons.MessageSquare
 import compose.icons.feathericons.Moon
+import compose.icons.feathericons.PieChart
 import compose.icons.feathericons.RotateCcw
+import compose.icons.feathericons.Trash
+import compose.icons.feathericons.Zap
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.MoneyBag02
 import kotlin.math.roundToInt
 
 /**
@@ -56,7 +68,9 @@ internal fun AppearanceSettingsSection(
     onSetChatFontSizeSp: (Int) -> Unit,
     onSetInputFontSizeSp: (Int) -> Unit,
     onSetUiFontScale: (Float) -> Unit,
-    onRestoreDefaults: () -> Unit
+    onRestoreDefaults: () -> Unit,
+    inputBarPrefs: InputBarPrefs,
+    onInputBarPrefsChange: (InputBarPrefs) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -133,6 +147,57 @@ internal fun AppearanceSettingsSection(
                 title = stringResource(R.string.settings_appearance_ui_scale),
                 value = uiFontScale,
                 onSet = onSetUiFontScale
+            )
+        }
+
+        SettingsGroupHeader(text = stringResource(R.string.settings_appearance_input_bar))
+        SettingsGroup {
+            SettingsRow(
+                icon = FeatherIcons.Box,
+                title = stringResource(R.string.settings_inputbar_mcp),
+                trailing = { AppSwitch(checked = inputBarPrefs.showMcp, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showMcp = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Zap,
+                title = stringResource(R.string.settings_inputbar_thinking),
+                trailing = { AppSwitch(checked = inputBarPrefs.showThinking, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showThinking = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Folder,
+                title = stringResource(R.string.settings_inputbar_folder),
+                trailing = { AppSwitch(checked = inputBarPrefs.showFolder, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showFolder = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Cpu,
+                title = stringResource(R.string.settings_inputbar_model),
+                trailing = { AppSwitch(checked = inputBarPrefs.showModel, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showModel = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.PieChart,
+                title = stringResource(R.string.settings_inputbar_usage_card),
+                trailing = { AppSwitch(checked = inputBarPrefs.showUsageCard, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showUsageCard = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Trash,
+                title = stringResource(R.string.settings_inputbar_clear),
+                trailing = { AppSwitch(checked = inputBarPrefs.showClear, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showClear = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Globe,
+                title = stringResource(R.string.settings_inputbar_web_search),
+                trailing = { AppSwitch(checked = inputBarPrefs.showWebSearch, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showWebSearch = it)) }) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = HugeIcons.MoneyBag02,
+                title = stringResource(R.string.settings_inputbar_balance),
+                trailing = { AppSwitch(checked = inputBarPrefs.showBalance, onCheckedChange = { onInputBarPrefsChange(inputBarPrefs.copy(showBalance = it)) }) }
             )
         }
 

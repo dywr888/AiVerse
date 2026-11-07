@@ -124,9 +124,9 @@ internal fun SubAgentEditorScreen(
         val provider = providers.firstOrNull { it.id == providerId }
         val capability = provider?.let { reasoningCapabilityOf(it, model, modelMetadata) }
         when {
-            capability == null || !capability.isKnown -> ReasoningEffort.entries
+            capability == null || !capability.isKnown -> ReasoningEffort.entries.filter { it != ReasoningEffort.AUTO }
             capability.canDisable -> listOf(ReasoningEffort.NONE) + capability.levels
-            else -> capability.levels.ifEmpty { ReasoningEffort.entries }
+            else -> capability.levels.ifEmpty { ReasoningEffort.entries.filter { it != ReasoningEffort.AUTO } }
         }
     }
 
@@ -644,6 +644,7 @@ private fun ReasoningEffort.withApiLabel(): String =
 
 private fun ReasoningEffort.labelRes(): Int = when (this) {
     ReasoningEffort.NONE -> R.string.chat_reasoning_effort_none
+    ReasoningEffort.AUTO -> R.string.chat_reasoning_effort_auto
     ReasoningEffort.MINIMAL -> R.string.chat_reasoning_effort_minimal
     ReasoningEffort.LOW -> R.string.chat_reasoning_effort_low
     ReasoningEffort.MEDIUM -> R.string.chat_reasoning_effort_medium

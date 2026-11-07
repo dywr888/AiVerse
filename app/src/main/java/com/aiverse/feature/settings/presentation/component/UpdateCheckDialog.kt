@@ -29,8 +29,6 @@ import com.aiverse.feature.settings.presentation.UpdateCheckUiState
  * 新版本弹窗直接列出从当前版本到最新版本的更新日志，可滚动；主按钮在应用内下载安装
  * （默认走镜像源，失败自动回退直连），次按钮保留「浏览器下载」作为兜底——镜像与直连都
  * 不通、或安装包签名与当前应用不一致时，用户仍能自己拿包。
- *
- * [canInstallInApp] 为 false（beta/debug 变体）时不显示应用内安装入口，只留浏览器下载。
  */
 @Composable
 internal fun UpdateCheckDialog(

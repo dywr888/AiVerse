@@ -71,7 +71,9 @@ internal fun settingsLightMode(): Boolean =
 internal fun CollapsibleGroupHeader(
     text: String,
     expanded: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    /** 标题右侧、折叠箭头左侧的可选内容（如余额）。 */
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -86,6 +88,10 @@ internal fun CollapsibleGroupHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        if (trailing != null) {
+            trailing()
+            Spacer(Modifier.width(Spacing.xs))
+        }
         ExpandableChevronIcon(
             expanded = expanded,
             style = ChevronRotationStyle.RIGHT_DOWN,

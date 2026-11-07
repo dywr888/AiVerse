@@ -81,7 +81,10 @@ data class AgentDefinition(
      * 不存在的工具。它只向父会话发消息，无写权限风险。
      */
     fun filterToolNames(all: List<String>): List<String> =
-        all.filter { allowsTool(it) || (it == PARENT_MESSAGE_TOOL && !isDenied(it)) }
+        all.filter {
+            allowsTool(it) ||
+                ((it == PARENT_MESSAGE_TOOL || it == PEER_MESSAGE_TOOL) && !isDenied(it))
+        }
             .filterNot { it == NESTED_TOOL }
 
     /** 该定义是否允许 [toolName]：[filterToolNames] 与 [capabilitySummary] 共用同一判定，不维护第二套配置。 */
@@ -147,6 +150,9 @@ data class AgentDefinition(
 
         /** 仅子代理可用的工具（子→主发消息）；主会话工具集剔除它。 */
         const val PARENT_MESSAGE_TOOL = "messageParent"
+
+        /** 仅子代理可用的工具（子→子对等互通，专家模式）；主会话工具集剔除它。 */
+        const val PEER_MESSAGE_TOOL = "messagePeer"
 
         /**
          * [capabilitySummary] 的能力分组：新增同类工具时补进对应组，摘要才不会漏判。

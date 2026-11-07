@@ -516,7 +516,7 @@ fun AppNavigation(
         }
     }
 
-    // 自动检查更新：进入主页时异步检测（开关开启且每天最多一次，失败静默）
+    // 自动检查更新：进入主页时异步检测（开关开启，失败静默）
     LaunchedEffect(agreementAccepted) {
         if (agreementAccepted) settingsViewModel.checkUpdate(manual = false)
     }

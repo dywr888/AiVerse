@@ -116,6 +116,7 @@ import com.aiverse.feature.agent.domain.mention.fileMentionQuery
 import com.aiverse.feature.agent.presentation.AgentUIState
 import com.aiverse.feature.agent.presentation.QueuedRequest
 import com.aiverse.feature.settings.data.remote.ModelTestResult
+import com.aiverse.feature.settings.data.repository.InputBarPrefs
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
 import com.aiverse.feature.settings.domain.model.ModelMetadata
 import com.aiverse.feature.settings.domain.model.modelMetadataKey
@@ -137,7 +138,10 @@ import compose.icons.feathericons.X
 import compose.icons.feathericons.Maximize
 import compose.icons.feathericons.Minimize
 import compose.icons.feathericons.Box
+import compose.icons.feathericons.ChevronUp
+import compose.icons.feathericons.Globe
 import compose.icons.feathericons.Plus
+import compose.icons.feathericons.Trash
 import compose.icons.feathericons.Square
 import compose.icons.feathericons.Shield
 import kotlinx.coroutines.launch
@@ -216,12 +220,32 @@ internal fun ChatInputBar(
     onOpenMcp: () -> Unit = {},
     /** 主页模型弹层的连通性测试：null（无设置页 ViewModel 的宿主）时弹层不显示测试按钮。 */
     onRunModelTest: (suspend (AIProviderConfig, String) -> ModelTestResult)? = null,
+    /** 上下文用量明细（当前会话；null 时圆环点击不弹卡）。 */
+    contextUsageDetail: ContextUsageDetail? = null,
+    /** 自动压缩触发阈值（百分比），圆环明细卡进度条上画界限标记。 */
+    compactionThresholdPercent: Int = 85,
+    /** 输入框快捷栏可开关项快照。 */
+    inputBarPrefs: InputBarPrefs = InputBarPrefs(),
+    /** 一键压缩当前会话上下文。 */
+    onCompactContext: () -> Unit = {},
+    /** 清空当前对话。 */
+    onClearChat: () -> Unit = {},
+    /** 切换联网搜索工具启用状态。 */
+    onToggleWebSearch: () -> Unit = {},
+    /** 联网搜索工具当前是否启用。 */
+    webSearchEnabled: Boolean = true,
+    /** 余额胶囊状态（当前模型；未开启时胶囊不显示）。 */
+    balanceState: BalanceCapsuleState? = null,
+    /** 刷新当前模型余额。 */
+    onRefreshBalance: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val hasContent = value.isNotBlank() || pendingAttachments.isNotEmpty()
     val canSend = hasContent
     var showAttachmentSheet by remember { mutableStateOf(false) }
     var showFullScreenInput by remember { mutableStateOf(false) }
+    // 上下文用量面板展开态：点圆环展开（圆环变叉=关闭按钮），点叉收起。
+    var usagePanelExpanded by remember { mutableStateOf(false) }
     // TextField 的 String 重载在整串替换时会保留旧 selection 下标（点快捷命令补全时光标会停在中间），
     // 这里自持 TextFieldValue：外部改值时把光标移到末尾。
     var inputFieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
@@ -489,6 +513,22 @@ internal fun ChatInputBar(
                 )
             }
 
+            // 上下文用量面板：点圆环展开（内嵌输入框上方、占满横向），圆环变叉为关闭按钮。
+            AnimatedVisibility(
+                visible = usagePanelExpanded && contextUsageDetail != null,
+                enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(180)) + shrinkVertically(tween(180))
+            ) {
+                if (contextUsageDetail != null) {
+                    ContextUsageDetailCard(
+                        detail = contextUsageDetail,
+                        onCompact = onCompactContext,
+                        thresholdPercent = compactionThresholdPercent,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
+                    )
+                }
+            }
+
             val hyperOS = LocalHyperOSStyle.current
             val inputShape = if (hyperOS) RoundedCornerShape(20.dp) else RoundedCornerShape(Radius.lg)
             Column(
@@ -594,7 +634,8 @@ internal fun ChatInputBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val modeColor = when (currentMode) {
@@ -707,52 +748,157 @@ internal fun ChatInputBar(
                         }
                         Spacer(Modifier.width(Spacing.xs))
 
-                        ModelIconButton(
-                            provider = activeProvider,
-                            providers = providers,
-                            modelMetadata = modelMetadata,
-                            onSelectModel = onSelectModel,
-                            forceOpenSheet = forceOpenModelSheet,
-                            onSelectSuccessInOnboarding = onSelectModelInOnboarding,
-                            onSheetDismiss = onModelSheetDismiss,
-                            onOpenProviders = onOpenProviders,
-                            runModelTest = onRunModelTest,
-                            modifier = Modifier.onboardingTarget(OnboardingStep.OPEN_MODEL_PICKER)
-                        )
-
-                        if (workspaceViewModel != null) {
-                            WorkspaceIconButton(
-                                viewModel = workspaceViewModel,
-                                hasRunningSessions = hasRunningSessions,
-                                onSwitchConfirmed = onSwitchWorkspaceConfirmed,
-                                modifier = Modifier.size(36.dp),
-                                iconSize = 20.dp
-                            )
-                        }
-
-                        IconButton(onClick = onOpenMcp, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                FeatherIcons.Box,
-                                contentDescription = stringResource(R.string.settings_mcp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        // 思考能力与实际请求同源：已知就只列真实档位，未知（中转站改名 / 自定义模型）
-                        // 才退回全部档位并由弹层标注「可能不生效」。
                         val capability = reasoningCapabilityOf(activeProvider, activeProvider?.effectiveModel.orEmpty(), modelMetadata)
                         val hasReasoningControl = !capability.isKnown ||
                             capability.levels.isNotEmpty() || capability.canDisable
-                        if (hasReasoningControl) {
-                            ReasoningEffortSelector(
-                                effort = reasoningEffort,
-                                capability = capability,
-                                protocol = activeProvider?.let { reasoningProtocolOf(it) } ?: ReasoningProtocol.OPENAI_CHAT,
-                                model = activeProvider?.effectiveModel.orEmpty(),
-                                onChange = onReasoningEffortChange,
-                                enabled = !isBusy
-                            )
+                        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                            val density = LocalDensity.current
+                            val maxWpx = with(density) { maxWidth.toPx() }
+                            var itemWidths by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
+                            val toolbarItems: List<Pair<Int, @Composable () -> Unit>> = buildList {
+                                if (inputBarPrefs.showUsageCard) add(-1 to @Composable {
+                                    ContextUsageRing(
+                                        progress = tokenProgress.coerceIn(0f, 1f),
+                                        tokenEstimated = tokenEstimated,
+                                        expanded = usagePanelExpanded,
+                                        onToggle = { if (contextUsageDetail != null) usagePanelExpanded = !usagePanelExpanded }
+                                    )
+                                })
+                                if (inputBarPrefs.showModel) add(0 to @Composable {
+                                    ModelIconButton(
+                                        provider = activeProvider,
+                                        providers = providers,
+                                        modelMetadata = modelMetadata,
+                                        onSelectModel = onSelectModel,
+                                        forceOpenSheet = forceOpenModelSheet,
+                                        onSelectSuccessInOnboarding = onSelectModelInOnboarding,
+                                        onSheetDismiss = onModelSheetDismiss,
+                                        onOpenProviders = onOpenProviders,
+                                        runModelTest = onRunModelTest,
+                                        modifier = Modifier.onboardingTarget(OnboardingStep.OPEN_MODEL_PICKER)
+                                    )
+                                })
+                                if (workspaceViewModel != null && inputBarPrefs.showFolder) add(1 to @Composable {
+                                    WorkspaceIconButton(
+                                        viewModel = workspaceViewModel,
+                                        hasRunningSessions = hasRunningSessions,
+                                        onSwitchConfirmed = onSwitchWorkspaceConfirmed,
+                                        modifier = Modifier.size(36.dp),
+                                        iconSize = 20.dp
+                                    )
+                                })
+                                if (inputBarPrefs.showMcp) add(2 to @Composable {
+                                    IconButton(onClick = onOpenMcp, modifier = Modifier.size(36.dp)) {
+                                        Icon(
+                                            FeatherIcons.Box,
+                                            contentDescription = stringResource(R.string.settings_mcp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                })
+                                if (hasReasoningControl && inputBarPrefs.showThinking) add(3 to @Composable {
+                                    ReasoningEffortSelector(
+                                        effort = reasoningEffort,
+                                        capability = capability,
+                                        protocol = activeProvider?.let { reasoningProtocolOf(it) } ?: ReasoningProtocol.OPENAI_CHAT,
+                                        model = activeProvider?.effectiveModel.orEmpty(),
+                                        onChange = onReasoningEffortChange,
+                                        enabled = !isBusy
+                                    )
+                                })
+                                if (inputBarPrefs.showBalance) {
+                                    balanceState?.takeIf { it.enabled }?.let { st ->
+                                        add(5 to @Composable {
+                                            BalanceCapsule(state = st, onRefresh = onRefreshBalance)
+                                        })
+                                    }
+                                }
+                                if (inputBarPrefs.showClear) add(6 to @Composable {
+                                    IconButton(onClick = onClearChat, enabled = !isBusy, modifier = Modifier.size(36.dp)) {
+                                        Icon(
+                                            FeatherIcons.Trash,
+                                            contentDescription = stringResource(R.string.chat_clear_chat),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                })
+                                if (inputBarPrefs.showWebSearch) add(7 to @Composable {
+                                    IconButton(onClick = onToggleWebSearch, modifier = Modifier.size(36.dp)) {
+                                        Icon(
+                                            FeatherIcons.Globe,
+                                            contentDescription = stringResource(R.string.chat_web_search_toggle),
+                                            tint = if (webSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                })
+                            }
+                            val allMeasured = toolbarItems.all { itemWidths.containsKey(it.first) }
+                            val visibleItems = mutableListOf<Pair<Int, @Composable () -> Unit>>()
+                            val overflowItems = mutableListOf<Pair<Int, @Composable () -> Unit>>()
+                            if (allMeasured) {
+                                var used = 0
+                                for ((id, content) in toolbarItems) {
+                                    val w = itemWidths[id] ?: 0
+                                    if (used + w <= maxWpx) {
+                                        visibleItems.add(id to content)
+                                        used += w
+                                    } else {
+                                        overflowItems.add(id to content)
+                                    }
+                                }
+                            } else {
+                                visibleItems.addAll(toolbarItems)
+                            }
+                            var overflowExpanded by remember { mutableStateOf(false) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                visibleItems.forEach { (id, content) ->
+                                    Box(
+                                        modifier = Modifier.onSizeChanged {
+                                            itemWidths = itemWidths + (id to it.width)
+                                        }
+                                    ) { content() }
+                                }
+                                if (allMeasured && overflowItems.isNotEmpty()) {
+                                    Box {
+                                        IconButton(onClick = { overflowExpanded = !overflowExpanded }, modifier = Modifier.size(36.dp)) {
+                                            Icon(
+                                                FeatherIcons.ChevronDown,
+                                                contentDescription = stringResource(R.string.chat_more_tools),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        if (overflowExpanded) {
+                                            Popup(
+                                                alignment = Alignment.BottomStart,
+                                                onDismissRequest = { overflowExpanded = false },
+                                                properties = PopupProperties(focusable = true, dismissOnBackPress = true)
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = MaterialTheme.colorScheme.surface,
+                                                    shadowElevation = 8.dp,
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .width(IntrinsicSize.Min)
+                                                            .padding(vertical = 4.dp)
+                                                    ) {
+                                                        overflowItems.forEach { (_, content) -> content() }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     UploadIconButton(
@@ -761,7 +907,7 @@ internal fun ChatInputBar(
                         contentDescription = stringResource(R.string.chat_add_attachment),
                         onClick = { showAttachmentSheet = true }
                     )
-                    SendButton(canSend = canSend, hasContent = hasContent, isBusy = isBusy, tokenProgress = tokenProgress, tokenEstimated = tokenEstimated, onSend = onSend, onStop = onStop)
+                    SendButton(canSend = canSend, hasContent = hasContent, isBusy = isBusy, onSend = onSend, onStop = onStop)
                 }
             }
         }
@@ -919,8 +1065,6 @@ internal fun SendButton(
     canSend: Boolean,
     hasContent: Boolean,
     isBusy: Boolean,
-    tokenProgress: Float,
-    tokenEstimated: Boolean,
     onSend: () -> Unit,
     onStop: () -> Unit
 ) {
@@ -939,39 +1083,13 @@ internal fun SendButton(
         buttonColor.luminance() > 0.5f -> Color(0xFF1C1C1E)
         else -> Color.White
     }
-    val arcColor = buttonColor.copy(alpha = 0.85f)
-    val clampedProgress = tokenProgress.coerceIn(0f, 1f)
     Box(
         modifier = Modifier
             .padding(Spacing.xs)
-            .size(44.dp),
+            .size(44.dp)
+            .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        if (clampedProgress > 0f) {
-            val usageLabel = stringResource(
-                if (tokenEstimated) R.string.chat_context_usage_estimated else R.string.chat_context_usage,
-                (clampedProgress * 100).toInt()
-            )
-            Canvas(
-                modifier = Modifier
-                    .size(44.dp)
-                    // 上下文用量只靠这圈弧表达，给读屏补上百分比。
-                    .semantics { contentDescription = usageLabel }
-            ) {
-                val stroke = 3.dp.toPx()
-                val arcSize = size.minDimension - stroke
-                val topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f)
-                drawArc(
-                    color = arcColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f * clampedProgress,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
-                    style = Stroke(width = stroke, cap = StrokeCap.Round)
-                )
-            }
-        }
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -997,6 +1115,92 @@ internal fun SendButton(
             }
         }
     }
+}
+
+/**
+ * 快捷栏的上下文用量环（与其它快捷按钮并排）：始终显示（设置开启时），环内居中显示占用百分比；
+ * 颜色按占用程度：无占用白色、≤50% 绿色、≤75% 黄色、>75% 红色。
+ * 点击弹出上下文用量明细浮层。
+ */
+@Composable
+private fun ContextUsageRing(
+    progress: Float,
+    tokenEstimated: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val ringColor = contextRingColor(progress)
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val usageLabel = if (expanded) {
+        stringResource(R.string.chat_context_close)
+    } else {
+        stringResource(
+            if (tokenEstimated) R.string.chat_context_usage_estimated else R.string.chat_context_usage,
+            (progress * 100).toInt()
+        )
+    }
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onToggle)
+            .semantics { contentDescription = usageLabel },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 3.dp.toPx()
+            val arcSize = size.minDimension - stroke
+            val topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f)
+            // 无占用时轨道用灰色描边而非纯白：白色在浅色主题下不可见，会让圆环看起来"消失"。
+            drawArc(
+                color = trackColor,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+            if (progress > 0f) {
+                drawArc(
+                    color = ringColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+        }
+        if (expanded) {
+            Icon(
+                FeatherIcons.X,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        } else {
+            Text(
+                text = "${(progress * 100).toInt()}%",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = if (progress <= 0f) MaterialTheme.colorScheme.onSurfaceVariant else ringColor,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
+/** 上下文用量环颜色：无占用白色、≤50% 绿色、≤75% 黄色、>75% 红色。 */
+internal fun contextRingColor(progress: Float): Color = when {
+    progress <= 0f -> Color.White
+    progress > 0.75f -> Color(0xFFE53935)
+    progress > 0.5f -> Color(0xFFF9A825)
+    else -> Color(0xFF43A047)
 }
 
 @Composable

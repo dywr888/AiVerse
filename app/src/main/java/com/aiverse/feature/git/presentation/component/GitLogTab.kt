@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -47,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -56,11 +58,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aiverse.R
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
@@ -86,6 +90,95 @@ import androidx.compose.ui.graphics.RectangleShape
 import com.aiverse.core.ui.AppTextField
 import com.aiverse.core.ui.dialogTextFieldColors
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+
+/**
+ * 多作者展示：最多显示 2 个头像（上下堆叠）+ 右侧「+N人」（超过 2 人时），
+ * 点击头像/作者名/加号跳转独立页面查看全部提交者。
+ */
+@Composable
+private fun CommitAuthorText(
+    commit: GraphCommit,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    dateSuffix: String? = null,
+    onShowContributors: (List<String>) -> Unit = {}
+) {
+    val authors = commit.allAuthors
+    val primary = MaterialTheme.colorScheme.primary
+    // 除作者外的人数（co-authors 数），>0 时在作者名后显示「+N人」。
+    val extra = authors.size - 1
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+    ) {
+        // 作者头像（点击跳转全部提交者）
+        AuthorAvatar(
+            name = authors.first(),
+            size = 16.dp,
+            modifier = Modifier.clickable { onShowContributors(authors) }
+        )
+        // 第一作者名（点击跳转全部提交者）
+        Text(
+            text = authors.first(),
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .clickable { onShowContributors(authors) }
+        )
+        // 剩余人数（除作者外）：仅当有 co-author 时显示
+        if (extra > 0) {
+            Text(
+                text = "+${extra}人",
+                style = style,
+                color = primary,
+                maxLines = 1,
+                modifier = Modifier.clickable { onShowContributors(authors) }
+            )
+        }
+        // 日期（仅详情页传入）：推到最右，与概览页信息列对齐
+        if (dateSuffix != null) {
+            Spacer(Modifier.weight(1f))
+            Text(text = dateSuffix, style = style, color = color, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * 作者头像：加载 GitHub 头像（按作者名拼 URL，无需用户手动输入）。
+ * 加载失败或作者名非 GitHub 用户名时**不显示头像**（无大写字母回退）。
+ */
+@Composable
+internal fun AuthorAvatar(name: String, size: Dp, modifier: Modifier = Modifier) {
+    val url = githubAvatarUrl(name)
+    if (url.isNotEmpty()) {
+        AsyncImage(
+            model = url,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+        )
+    }
+    // url 为空（非 GitHub 用户名）或加载失败：不渲染任何内容（无头像）
+}
+
+/**
+ * 按作者名拼 GitHub 头像 URL（作者名即 GitHub 用户名）。
+ * 含空格/特殊字符（非 GitHub 用户名）时返回空字符串，调用方回退首字母。
+ */
+internal fun githubAvatarUrl(name: String): String {
+    val n = name.trim()
+    if (n.isEmpty() || n.any { it.isWhitespace() || it in "()[]{}<>\"'`|;\\" }) return ""
+    return "https://avatars.githubusercontent.com/$n?s=64"
+}
 
 @Composable
 internal fun LogTab(
@@ -101,7 +194,9 @@ internal fun LogTab(
     onLoadMore: () -> Unit,
     onCreateBranchAtCommit: (String, String) -> Unit = { _, _ -> },
     onCreateTagAtCommit: (String, String) -> Unit = { _, _ -> },
-    onResetToCommit: (String, String) -> Unit = { _, _ -> }
+    onResetToCommit: (String, String) -> Unit = { _, _ -> },
+    /** 点击作者头像/名字/加号时回调，用于跳转独立页面查看全部提交者。 */
+    onShowContributors: (List<String>) -> Unit = { _ -> }
 ) {
     val allCommits = graph.commits
     if (allCommits.isEmpty()) {
@@ -206,7 +301,8 @@ internal fun LogTab(
                         rowHeight = rowHeight,
                         refs = graph.refs[c.hash].orEmpty(),
                         isTopTerminal = origIndex == 0,
-                        onOpen = { onOpenCommit(c.hash) }
+                        onOpen = { onOpenCommit(c.hash) },
+                        onShowContributors = onShowContributors
                     )
                 }
             }
@@ -260,7 +356,8 @@ internal fun LogTab(
                 onFileDiff = onFileDiff,
                 onCreateBranch = { name -> onCreateBranchAtCommit(name, commit.hash) },
                 onCreateTag = { name -> onCreateTagAtCommit(name, commit.hash) },
-                onReset = { mode -> onResetToCommit(commit.hash, mode) }
+                onReset = { mode -> onResetToCommit(commit.hash, mode) },
+                onShowContributors = onShowContributors
             )
         }
     }
@@ -280,7 +377,8 @@ private fun GraphCommitRow(
     refs: List<GitGraphRef>,
     /** 列表第一行（最新提交）：上方无更多提交，不画向上延伸的竖线。 */
     isTopTerminal: Boolean,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    onShowContributors: (List<String>) -> Unit = { _ -> }
 ) {
     val isMerge = commit.isMerge
     val nodeColor = laneColors.getOrElse(lane) { Color.Gray }
@@ -356,13 +454,12 @@ private fun GraphCommitRow(
                                 )
                             }
                             Spacer(Modifier.width(Spacing.sm))
-                            Text(
-                                text = commit.author,
+                            CommitAuthorText(
+                                commit = commit,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onShowContributors = onShowContributors
                             )
                             Text(
                                 text = commit.date,
@@ -697,7 +794,8 @@ private fun CommitDetailSheet(
     onFileDiff: (String, String) -> Unit,
     onCreateBranch: (String) -> Unit = {},
     onCreateTag: (String) -> Unit = {},
-    onReset: (String) -> Unit = {}
+    onReset: (String) -> Unit = {},
+    onShowContributors: (List<String>) -> Unit = { _ -> }
 ) {
     val sheetState = rememberModalBottomSheetState()
     val clipboard = LocalClipboard.current
@@ -859,10 +957,13 @@ private fun CommitDetailSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = "${commit.author} · ${commit.date}",
+            CommitAuthorText(
+                commit = commit,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                dateSuffix = commit.date,
+                modifier = Modifier.fillMaxWidth(),
+                onShowContributors = onShowContributors
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

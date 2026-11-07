@@ -278,6 +278,7 @@ fun SettingsScreen(
     val chatFontSizeSp by viewModel.chatFontSizeSp.collectAsStateWithLifecycle()
     val inputFontSizeSp by viewModel.inputFontSizeSp.collectAsStateWithLifecycle()
     val uiFontScale by viewModel.uiFontScale.collectAsStateWithLifecycle()
+    val inputBarPrefs by viewModel.inputBarPrefs.collectAsStateWithLifecycle()
     val defaultSkillInstallScope by viewModel.defaultSkillInstallScope.collectAsStateWithLifecycle()
     val languageTag by viewModel.languageTag.collectAsStateWithLifecycle()
     val visionProviderId by viewModel.visionProviderId.collectAsStateWithLifecycle()
@@ -996,7 +997,9 @@ fun SettingsScreen(
                     onSetChatFontSizeSp = { viewModel.setChatFontSizeSp(it) },
                     onSetInputFontSizeSp = { viewModel.setInputFontSizeSp(it) },
                     onSetUiFontScale = { viewModel.setUiFontScale(it) },
-                    onRestoreDefaults = { viewModel.restoreAppearanceDefaults() }
+                    onRestoreDefaults = { viewModel.restoreAppearanceDefaults() },
+                    inputBarPrefs = inputBarPrefs,
+                    onInputBarPrefsChange = { viewModel.updateInputBarPrefs(it) }
                 )
                 SettingsSection.Providers -> ProvidersSection(
                     providers = providers,

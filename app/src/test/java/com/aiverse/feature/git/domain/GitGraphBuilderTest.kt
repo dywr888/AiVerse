@@ -68,9 +68,9 @@ class GitGraphBuilderTest {
 
     @Test
     fun parsesMultipleLines_removesCarriageReturn() {
-        // git 输出经终端通道可能带 \r\n，逐行须去掉尾部 \r
-        val raw = "a1b2c3\u001fa1b2c3\u001fAlice\u001f2 days ago\u001ffix: 1\u001f\r\n" +
-            "d4e5f6\u001fd4e5f6\u001fBob\u001f3 days ago\u001ffeat: 2\u001fr0r0r0\r\n"
+        // git 输出经终端通道可能带 \r，NUL 分隔下每条记录须去掉尾部 \r
+        val raw = "a1b2c3\u001fa1b2c3\u001fAlice\u001f2 days ago\u001ffix: 1\u001f\r\u0000" +
+            "d4e5f6\u001fd4e5f6\u001fBob\u001f3 days ago\u001ffeat: 2\u001fr0r0r0\r\u0000"
         val commits = GitGraphBuilder.parseGraphCommits(raw)
         assertEquals(2, commits.size)
         assertEquals("a1b2c3", commits[0].hash)

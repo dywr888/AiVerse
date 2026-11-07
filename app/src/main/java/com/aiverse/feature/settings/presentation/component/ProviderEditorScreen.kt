@@ -52,6 +52,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.MoneyBag02
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ButtonDefaults
@@ -123,6 +125,8 @@ import com.aiverse.feature.settings.data.local.CustomModelMetadataStore
 import com.aiverse.feature.settings.data.local.ProviderPreset
 import com.aiverse.feature.settings.data.remote.ModelTestResult
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
+import com.aiverse.feature.settings.domain.model.BalanceConfig
+import com.aiverse.feature.settings.domain.model.BalanceHeader
 import com.aiverse.feature.settings.domain.model.KeyRotationStrategy
 import com.aiverse.feature.settings.domain.model.ModelMetadata
 import com.aiverse.feature.settings.domain.model.MAX_KEY_WEIGHT
@@ -131,6 +135,7 @@ import com.aiverse.feature.settings.domain.model.ProviderType
 import com.aiverse.feature.settings.data.repository.ProxyConfig
 import com.aiverse.feature.settings.domain.model.ProxyType
 import com.aiverse.feature.settings.domain.model.mergeModelMetadata
+import com.aiverse.feature.settings.domain.model.defaultBalanceConfig
 import com.aiverse.feature.settings.domain.model.modelMetadataKey
 import com.aiverse.feature.settings.domain.model.sanitized
 import com.aiverse.feature.settings.presentation.FetchState
@@ -585,6 +590,18 @@ fun ProviderEditorScreen(
                                 onCheckedChange = { useResponseApi = it }
                             )
                         }
+                        // 余额信息：openai 兼容缓存键上方。开启查询该提供商余额，展开可自定义 URL/Header/JSON 键。
+                        if (initialProvider != null) {
+                            val balanceCfg = viewModel.balanceConfigFor(initialProvider)
+                            if (balanceCfg != null) {
+                                SettingsDivider()
+                                ProviderBalanceInfoRow(
+                                    provider = initialProvider,
+                                    viewModel = viewModel,
+                                    initialConfig = balanceCfg
+                                )
+                            }
+                        }
                         if (type == ProviderType.OPENAI) {
                             SettingsDivider()
                             ProviderSwitchRow(
@@ -655,6 +672,13 @@ fun ProviderEditorScreen(
                     // ── 自定义面板 (DIY) ──
                     SettingsGroupHeader(text = stringResource(R.string.provider_section_dashboard))
                     SettingsGroup {
+                        Text(
+                            text = stringResource(R.string.provider_dashboard_intro),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+                        )
+                        SettingsDivider()
                         ProviderTextFieldRow(
                             label = stringResource(R.string.provider_dashboard_script),
                             value = dashboardScriptPath,
@@ -1471,6 +1495,7 @@ private fun ReasoningEffort.reasoningLabel(): String =
 
 private fun ReasoningEffort.reasoningLabelRes(): Int = when (this) {
     ReasoningEffort.NONE -> R.string.chat_reasoning_effort_none
+    ReasoningEffort.AUTO -> R.string.chat_reasoning_effort_auto
     ReasoningEffort.MINIMAL -> R.string.chat_reasoning_effort_minimal
     ReasoningEffort.LOW -> R.string.chat_reasoning_effort_low
     ReasoningEffort.MEDIUM -> R.string.chat_reasoning_effort_medium
@@ -2000,6 +2025,155 @@ private fun ProviderSwitchRow(
             checked = checked,
             onCheckedChange = onCheckedChange
         )
+    }
+}
+
+/**
+ * 模型编辑页的「余额信息」项：标题 + 查询结果副标题 + 展开箭头 + 开关；展开显示 URL / Header 名称 / Header 值 / JSON 键 / 额外 Header。
+ * 字段变更即落盘（仿 rikkahub QuotaQueryOption），开关开启即查询。
+ */
+@Composable
+private fun ProviderBalanceInfoRow(
+    provider: AIProviderConfig,
+    viewModel: SettingsViewModel,
+    initialConfig: BalanceConfig
+) {
+    var expand by remember { mutableStateOf(false) }
+    var config by remember(initialConfig) { mutableStateOf(initialConfig) }
+    val balanceResults by viewModel.balanceResults.collectAsStateWithLifecycle()
+    val result = balanceResults[provider.id]
+    val resultText = when {
+        !config.enabled -> ""
+        result == null -> "…"
+        result.getOrNull() != null -> result.getOrNull()!!
+        else -> "Error: ${result.exceptionOrNull()?.message}"
+    }
+    // 展开且开启时自动查询一次（未查过才查）。
+    LaunchedEffect(expand, config.enabled) {
+        if (expand && config.enabled && result == null) {
+            viewModel.refreshBalanceFor(provider)
+        }
+    }
+
+    fun save(newConfig: BalanceConfig) {
+        config = newConfig
+        viewModel.updateBalanceConfig(provider.id, newConfig)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = HugeIcons.MoneyBag02,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.provider_balance_info_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (resultText.isNotBlank()) {
+                    Text(
+                        text = resultText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            AppSwitch(
+                checked = config.enabled,
+                onCheckedChange = { enabled ->
+                    save(config.copy(enabled = enabled))
+                    if (enabled) viewModel.refreshBalanceFor(provider)
+                }
+            )
+            IconButton(onClick = { expand = !expand }) {
+                Icon(
+                    imageVector = if (expand) FeatherIcons.ChevronUp else FeatherIcons.ChevronDown,
+                    contentDescription = null
+                )
+            }
+        }
+        AnimatedVisibility(visible = expand) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg)
+                    .padding(bottom = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                AppTextField(
+                    value = config.urlTemplate,
+                    onValueChange = { save(config.copy(urlTemplate = it)) },
+                    label = stringResource(R.string.provider_balance_url),
+                    singleLine = true
+                )
+                config.headers.forEachIndexed { index, header ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        AppTextField(
+                            value = header.name,
+                            onValueChange = { name ->
+                                save(config.copy(headers = config.headers.toMutableList().also { it[index] = header.copy(name = name) }))
+                            },
+                            label = stringResource(R.string.provider_balance_header_name),
+                            singleLine = true,
+                            modifier = Modifier.weight(2f)
+                        )
+                        AppTextField(
+                            value = header.value,
+                            onValueChange = { value ->
+                                save(config.copy(headers = config.headers.toMutableList().also { it[index] = header.copy(value = value) }))
+                            },
+                            label = stringResource(R.string.provider_balance_header_value),
+                            singleLine = true,
+                            modifier = Modifier.weight(3f)
+                        )
+                        IconButton(onClick = {
+                            save(config.copy(headers = config.headers.filterIndexed { i, _ -> i != index }))
+                        }) {
+                            Icon(FeatherIcons.Trash2, contentDescription = stringResource(R.string.provider_balance_remove_header))
+                        }
+                    }
+                }
+                AppTextField(
+                    value = config.jsonKey,
+                    onValueChange = { save(config.copy(jsonKey = it)) },
+                    label = stringResource(R.string.provider_balance_json_key),
+                    singleLine = true
+                )
+                Text(
+                    text = stringResource(R.string.provider_balance_variables),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TextButton(onClick = {
+                        save(config.copy(headers = config.headers + BalanceHeader("", "")))
+                    }) {
+                        Text(stringResource(R.string.provider_balance_add_header))
+                    }
+                    TextButton(onClick = {
+                        defaultBalanceConfig(provider)?.let { save(it) }
+                    }) {
+                        Text(stringResource(R.string.provider_balance_restore_default))
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -517,8 +517,13 @@ class TaskTool @Inject constructor(
         }
         val sub = sessionUseCase.getSessionById(subSessionId)
             ?: return ToolResult.Error("子会话不存在：$subSessionId", "SESSION_NOT_FOUND")
-        if (sub.parentId != context.sessionId) {
-            return ToolResult.Error("只能读取当前会话派生的子代理", "NOT_YOUR_SUBAGENT")
+        // 可读取：自己派生的子代理，或同父会话的兄弟子代理（专家模式对等借鉴）。
+        val contextSession = context.sessionId?.let { sessionUseCase.getSessionById(it) }
+        val isOwn = sub.parentId == context.sessionId
+        val isSibling = contextSession?.parentId != null &&
+            sub.parentId == contextSession.parentId && subSessionId != context.sessionId
+        if (!isOwn && !isSibling) {
+            return ToolResult.Error("只能读取当前会话或其兄弟子代理", "NOT_YOUR_SUBAGENT")
         }
 
         val messages = agentMessageDao.getMessagesBySessionOnce(subSessionId)

@@ -50,7 +50,7 @@ import javax.inject.Inject
  * 守卫防止并发写操作相互踩踏。
  */
 private fun GitGraph.toGitCommits() =
-    commits.map { GitCommit(it.hash, it.shortHash, it.author, it.date, it.message) }
+    commits.map { GitCommit(it.hash, it.shortHash, it.author, it.date, it.message, coAuthors = it.coAuthors) }
 
 @HiltViewModel
 class GitViewModel @Inject constructor(

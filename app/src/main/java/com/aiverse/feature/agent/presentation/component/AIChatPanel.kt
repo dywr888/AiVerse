@@ -693,6 +693,9 @@ fun AIChatPanel(
     val subAgentCards by viewModel.subAgentCards.collectAsStateWithLifecycle()
 
     val currentSessionId by viewModel.currentSessionId.collectAsStateWithLifecycle()
+    val inputBarPrefs by viewModel.inputBarPrefs.collectAsStateWithLifecycle()
+    val compactionThresholdPercent by viewModel.compactionThresholdPercent.collectAsStateWithLifecycle()
+    val webSearchEnabled by viewModel.webSearchEnabled.collectAsStateWithLifecycle()
     // 工具卡片入场调度：只排本次浏览期间新追加到尾部的 TOOL 消息，逐个错开淡入。
     // 换会话时调度器重建，新会话的存量消息不入场。
     val entryScheduler = remember(currentSessionId) { MessageEntryScheduler() }
@@ -808,29 +811,6 @@ fun AIChatPanel(
     val context = LocalContext.current
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
 
-    // 导出当前会话为 Markdown 并唤起系统分享。空会话/无 id 时静默返回。
-    fun exportCurrentSessionAsMarkdown() {
-        val sid = currentSessionId ?: return
-        viewModel.buildSessionMarkdown(sid) { md ->
-            if (md.isBlank()) {
-                Toast.makeText(context, R.string.chat_export_empty, Toast.LENGTH_SHORT).show()
-                return@buildSessionMarkdown
-            }
-            try {
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/markdown"
-                    putExtra(Intent.EXTRA_SUBJECT, sessionTitle)
-                    putExtra(Intent.EXTRA_TEXT, md)
-                    // 文件名作为附加标题
-                    putExtra(Intent.EXTRA_TITLE, "$sessionTitle.md")
-                }
-                context.startActivity(Intent.createChooser(send, context.getString(R.string.chat_export_chooser)))
-            } catch (e: Exception) {
-                Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     // 回滚代码时若有文件因「快照后被改过」被跳过，必须告知用户——静默跳过等于把数据丢失
     // 换成了无声的失败。展示后立即清空状态，避免重组时重复弹。
     LaunchedEffect(rewindConflicts) {
@@ -922,12 +902,27 @@ fun AIChatPanel(
     }
     val activeModel = activeProvider?.effectiveModel.orEmpty()
     val activeModelMetadata = activeProvider?.let { modelMetadata[modelMetadataKey(it.id, activeModel)] }
+    // 上下文用量明细：点击快捷栏圆环弹出；分类按当前会话消息快照估算。
+    val contextUsageDetail = remember(currentSessionId, contextUsages, messages, sessionLastInputTokens) {
+        val contextLimit = activeModelMetadata?.let {
+            com.aiverse.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
+        } ?: 0
+        val usage = contextUsages[currentSessionId]
+        val used = usage?.inputTokens ?: sessionLastInputTokens
+        val estimated = usage?.estimated ?: (sessionLastInputTokens <= 0 && currentSessionId != null)
+        if (contextLimit > 0 && currentSessionId != null && used > 0) {
+            ContextUsageEstimator.estimate(messages, used, contextLimit, estimated)
+        } else null
+    }
     val canUploadFiles = projectRoot.isNotBlank() && activeModelMetadata?.supportsTools == true
     val canUploadImages = projectRoot.isNotBlank()
     val reasoningEffort by viewModel.currentSessionReasoningEffort.collectAsStateWithLifecycle()
 
     val providerDashboards by (settingsViewModel?.providerDashboards?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyMap()) })
     val currentDashboardState = activeProvider?.let { providerDashboards[it.id] } ?: ProviderDashboardState.Idle
+
+    // 余额胶囊：仅适配余额查询的提供商（deepseek/硅基流动）有状态；当前模型余额显示在快捷栏。
+    val balanceStates by viewModel.balanceStates.collectAsStateWithLifecycle()
 
     // 键盘弹出时收起面板，避免输入框被挤压
     val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
@@ -1615,8 +1610,7 @@ fun AIChatPanel(
                 showMenuButton = showMenuButton,
                 terminalActive = terminalActive,
                 gitActive = gitActive,
-                browserActive = browserActive,
-                onExportChat = { exportCurrentSessionAsMarkdown() }
+                browserActive = browserActive
             )
         }
     ) { padding ->
@@ -1911,6 +1905,19 @@ fun AIChatPanel(
                 onOpenMcp = onOpenMcp,
                 // 主页模型弹层的「测试」按钮：直接复用设置页的连通性测试链路，状态由弹层自己持有。
                 onRunModelTest = settingsViewModel?.let { svm -> { p, m -> svm.runModelTest(p, m) } },
+                contextUsageDetail = contextUsageDetail,
+                compactionThresholdPercent = compactionThresholdPercent,
+                inputBarPrefs = inputBarPrefs,
+                onCompactContext = { viewModel.compactCurrentSession() },
+                onClearChat = { currentSessionId?.let { viewModel.deleteSession(it) } },
+                onToggleWebSearch = { viewModel.toggleWebSearch() },
+                webSearchEnabled = webSearchEnabled,
+                balanceState = activeProvider?.let { p ->
+                    balanceStates[p.id] ?: viewModel.balanceStateFor(p)
+                },
+                onRefreshBalance = {
+                    activeProvider?.let { viewModel.refreshBalance(it) }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .onboardingTarget(OnboardingStep.SEND_MESSAGE)

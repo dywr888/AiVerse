@@ -80,6 +80,10 @@ object ReasoningResolver {
         declared: ReasoningCapability? = null
     ): ReasoningPlan {
         if (effortApiValue == null) return ReasoningPlan(ReasoningWire.Omit, reason = ReasoningPlan.Reason.FOLLOW_DEFAULT)
+        // 自动（rikkahub 同义）：开思考但不指定强度，等价于不设置 effort 参数，服务端用模型默认。
+        if (effortApiValue == "auto" || effortApiValue == "default") {
+            return ReasoningPlan(ReasoningWire.Omit, reason = ReasoningPlan.Reason.FOLLOW_DEFAULT)
+        }
         val requested = ReasoningEffort.fromApiValue(effortApiValue)
             ?: return ReasoningPlan(ReasoningWire.Omit, reason = ReasoningPlan.Reason.FOLLOW_DEFAULT)
         val cap = capability(protocol, model, declared)

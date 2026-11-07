@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,8 +59,13 @@ import com.aiverse.feature.onboarding.presentation.onboardingTarget
 import com.aiverse.feature.settings.data.local.ModelSheetCollapseStore
 import com.aiverse.feature.settings.data.remote.ModelTestResult
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
+import com.aiverse.feature.settings.domain.model.BalanceConfig
+import com.aiverse.feature.settings.data.remote.BalanceFetcher
+import com.aiverse.feature.settings.data.repository.BalanceSettingsRepository
 import com.aiverse.feature.settings.domain.model.ModelMetadata
 import com.aiverse.feature.settings.domain.model.modelMetadataKey
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.MoneyBag02
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ArrowDown
 import compose.icons.feathericons.ArrowUp
@@ -386,6 +392,9 @@ internal fun ModelSelectionSheet(
     val collapseStore = remember { ModelSheetCollapseStore(context.applicationContext) }
     var searchQuery by remember { mutableStateOf("") }
     var collapsedProviderIds by remember { mutableStateOf(collapseStore.collapsedProviderIds()) }
+    // 余额查询（模型名称右侧显示）：仅适配的提供商（deepseek/硅基流动）且开启时显示。
+    val balanceRepo = remember { BalanceSettingsRepository(context.applicationContext) }
+    val balanceFetcher = remember { BalanceFetcher() }
 
     AdaptiveModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -471,6 +480,9 @@ internal fun ModelSelectionSheet(
                                         }
                                         collapsedProviderIds = updated
                                         collapseStore.save(updated)
+                                    },
+                                    trailing = {
+                                        ProviderBalanceTrailing(provider, balanceRepo, balanceFetcher)
                                     }
                                 )
                             }
@@ -656,3 +668,43 @@ private fun formatTokenLimit(tokens: Int): String =
 
 private fun String.trimDecimal(): String =
     replace(Regex("(\\.\\d)\\d+"), "$1").removeSuffix(".0")
+
+/** 模型名称右侧的余额：钱图标 + 数字；未开启/不适配返回空。查询失败显示 `--`。 */
+@Composable
+private fun ProviderBalanceTrailing(
+    provider: AIProviderConfig,
+    repo: BalanceSettingsRepository,
+    fetcher: BalanceFetcher
+) {
+    val config = remember(provider.id) { repo.configFor(provider) }
+    if (!config.enabled) return
+    var result by remember(provider.id, config) { mutableStateOf<Result<String>?>(null) }
+    LaunchedEffect(provider.id, config) {
+        result = null
+        result = fetcher.fetchBalance(config, provider)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            imageVector = HugeIcons.MoneyBag02,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = when {
+                result == null -> "…"
+                result?.getOrNull() != null -> result!!.getOrNull()!!
+                else -> "--"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (result?.isFailure == true) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        )
+    }
+}

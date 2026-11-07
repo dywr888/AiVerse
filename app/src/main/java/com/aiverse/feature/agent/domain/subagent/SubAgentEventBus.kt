@@ -28,7 +28,10 @@ enum class SubAgentEventType {
     MESSAGE_FROM_PARENT,
 
     /** 子代理向主会话发来一条消息（发送方是子会话）。 */
-    MESSAGE_FROM_SUB
+    MESSAGE_FROM_SUB,
+
+    /** 子代理向另一子代理（对等互通，专家模式）发来一条消息；目标见 [SubAgentEvent.targetSubSessionId]。 */
+    MESSAGE_FROM_PEER
 }
 
 /**
@@ -44,7 +47,11 @@ data class SubAgentEvent(
     val subSessionId: String,
     val parentSessionId: String,
     val type: SubAgentEventType,
-    val detail: String = ""
+    val detail: String = "",
+    /** peer 消息的目标子代理会话 id（仅 [SubAgentEventType.MESSAGE_FROM_PEER] 用）。 */
+    val targetSubSessionId: String = "",
+    /** 消息序号（全局自增，调度器只认 id+seq，不解析文字名字）。 */
+    val seq: Long = 0
 )
 
 /**
@@ -129,7 +136,8 @@ class SubAgentEventBus @Inject constructor() {
                 SubAgentEventType.STOPPED, SubAgentEventType.DELETED -> {
                     _activeSubSessionIds.update { it - event.subSessionId }
                 }
-                SubAgentEventType.MESSAGE_FROM_PARENT, SubAgentEventType.MESSAGE_FROM_SUB -> {
+                SubAgentEventType.MESSAGE_FROM_PARENT, SubAgentEventType.MESSAGE_FROM_SUB,
+                SubAgentEventType.MESSAGE_FROM_PEER -> {
                     // 收发消息不改变运行状态，活跃集合保持不变。
                 }
             }
@@ -140,6 +148,10 @@ class SubAgentEventBus @Inject constructor() {
             FileLogger.e(TAG, "事件缓冲已满，事件被丢弃: ${event.type} sub=${event.subSessionId}")
         }
     }
+
+    /** 全局消息序号自增（调度器只认 id+seq，不解析文字名字）。 */
+    private val seqCounter = java.util.concurrent.atomic.AtomicLong(0)
+    fun nextSeq(): Long = seqCounter.incrementAndGet()
 
     companion object {
         private const val TAG = "SubAgentEventBus"

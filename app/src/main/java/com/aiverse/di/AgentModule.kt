@@ -55,6 +55,7 @@ import com.aiverse.feature.agent.domain.tool.question.AskUserQuestionTool
 import com.aiverse.feature.agent.domain.tool.todo.TodoTool
 import com.aiverse.feature.agent.domain.tool.subagent.TaskTool
 import com.aiverse.feature.agent.domain.tool.subagent.MessageParentTool
+import com.aiverse.feature.agent.domain.tool.subagent.MessagePeerTool
 import com.aiverse.feature.agent.domain.subagent.SubAgentEventBus
 import com.aiverse.feature.agent.domain.prompt.SystemPromptProvider
 import com.aiverse.feature.agent.domain.workflow.AgentWorkflow
@@ -395,6 +396,7 @@ object AgentModule {
         memoryTool: MemoryTool,
         taskTool: TaskTool,
         messageParentTool: MessageParentTool,
+        messagePeerTool: MessagePeerTool,
         browserTool: BrowserTool,
         reviewTool: ReviewTool
     ): ToolRegistry {
@@ -430,6 +432,7 @@ object AgentModule {
             register("memory", memoryTool)
             register("task", taskTool)
             register("messageParent", messageParentTool)
+            register("messagePeer", messagePeerTool)
             register("browser", browserTool)
             register("review", reviewTool)
         }

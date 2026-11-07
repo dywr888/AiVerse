@@ -15,8 +15,7 @@ enum class UpdateChannel {
 
 /**
  * 「自动检查更新」偏好存储：开关、更新通道、上次检测日期统一存 SharedPreferences
- * （键值文件，非数据库）。上次检测日期不写数据库，但也不放 cacheDir——缓存目录可能被
- * 系统清理导致「每天一次」失效，持久化到 SharedPreferences 更可靠。
+ * （键值文件，非数据库）。
  */
 @Singleton
 class UpdateCheckSettingsRepository @Inject constructor(

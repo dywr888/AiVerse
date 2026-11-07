@@ -742,7 +742,10 @@ class StatefulAgentWorkflow @Inject constructor(
                     is AgentSideEffect.RequestPermission -> {
                         val tool = toolRegistry.getTool(effect.toolCall.name)
                         val argsPreview = JsonObject(effect.toolCall.arguments).toString().take(500)
-                        val checkResult = requestPermissionIfNeeded(tool, effect.toolCall.id, effect.toolCall.arguments, argsPreview, currentContext.permissionMode, currentContext.sessionId)
+                        val isSub = currentContext.sessionId?.let { sid ->
+                            sessionUseCase.getSessionById(sid)?.parentId != null
+                        } ?: false
+                        val checkResult = requestPermissionIfNeeded(tool, effect.toolCall.id, effect.toolCall.arguments, argsPreview, currentContext.permissionMode, currentContext.sessionId, isSub)
 
                         if (!checkResult.approved) {
                             val rawResult = ToolResult.Error(checkResult.denyReason, checkResult.errorCode).toTransportString()
@@ -1379,7 +1382,8 @@ class StatefulAgentWorkflow @Inject constructor(
         arguments: Map<String, JsonElement>,
         argsPreview: String,
         mode: AgentMode,
-        sessionId: String?
+        sessionId: String?,
+        isSub: Boolean = false
     ): PermissionCheckResult {
         if (tool == null) {
             return PermissionCheckResult(true)
@@ -1402,6 +1406,17 @@ class StatefulAgentWorkflow @Inject constructor(
         }
 
         if (tool.permissionPolicy == ToolPermissionPolicy.AUTO_APPROVE) {
+            return PermissionCheckResult(true)
+        }
+
+        // 子代理（专家模式子弹）无用户交互确认弹窗：白名单内写操作 ASK 自动放行；
+        // 高危宿主系统操作（Shizuku）与不可逆删除仍拦截，避免无人确认的越权执行。
+        if (isSub && eval.verdict == ToolPermissionPolicyEngine.Verdict.ASK) {
+            if (tool.name == ToolPermissionPolicyEngine.SHIZUKU_TOOL ||
+                tool.name == ToolPermissionPolicyEngine.SHIZUKU_CONTROL_TOOL
+            ) {
+                return PermissionCheckResult(false, "子代理不允许执行宿主系统操作（Shizuku）", "SYSTEM_DENIED")
+            }
             return PermissionCheckResult(true)
         }
 

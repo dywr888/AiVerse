@@ -19,10 +19,14 @@ data class GraphCommit(
     /** 提交正文（message 之后的段落，无正文时为空串）。 */
     val body: String = "",
     /** 父提交完整哈希列表（按 git 输出顺序，第一父为主线）。 */
-    val parents: List<String>
+    val parents: List<String>,
+    /** Co-authored-by 协作作者（不含 author 本人），可能多个。 */
+    val coAuthors: List<String> = emptyList()
 ) {
     /** 是否为合并提交（≥2 个父提交）。用于绘制合并节点。 */
     val isMerge: Boolean get() = parents.size >= 2
+    /** 全部作者：第一作者 + 协作作者。 */
+    val allAuthors: List<String> get() = listOf(author) + coAuthors
 }
 
 /**

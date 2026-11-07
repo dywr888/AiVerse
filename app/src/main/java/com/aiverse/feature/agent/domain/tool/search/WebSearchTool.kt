@@ -2,6 +2,7 @@ package com.aiverse.feature.agent.domain.tool.search
 
 import com.aiverse.core.util.FileLogger
 import com.aiverse.feature.agent.domain.tool.AgentTool
+import com.aiverse.feature.settings.data.repository.InputBarSettingsRepository
 import com.aiverse.feature.agent.domain.tool.ParameterType
 import com.aiverse.feature.agent.domain.tool.ToolParameter
 import com.aiverse.feature.agent.domain.tool.ToolCapability
@@ -24,7 +25,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-class WebSearchTool @Inject constructor() : AgentTool() {
+class WebSearchTool @Inject constructor(
+    private val inputBarSettingsRepository: InputBarSettingsRepository
+) : AgentTool() {
 
     private companion object {
         const val TAG = "WebSearchTool"
@@ -58,6 +61,10 @@ class WebSearchTool @Inject constructor() : AgentTool() {
     override suspend fun execute(args: Map<String, JsonElement>): ToolResult {
         val query = args["query"]?.jsonPrimitive?.contentOrNull 
             ?: return ToolResult.Error("缺少必需参数：query")
+
+        if (!inputBarSettingsRepository.webSearchEnabled) {
+            return ToolResult.Error("联网搜索已关闭，可在输入框快捷栏重新开启")
+        }
 
         return withContext(Dispatchers.IO) {
             try {

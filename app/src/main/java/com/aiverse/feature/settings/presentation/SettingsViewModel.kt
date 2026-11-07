@@ -62,10 +62,14 @@ import com.aiverse.feature.settings.data.remote.ApkDownloadResult
 import com.aiverse.feature.settings.data.remote.ApkDownloader
 import com.aiverse.feature.settings.data.remote.ApkVerifier
 import com.aiverse.feature.settings.data.remote.ApkVerifyResult
+import com.aiverse.feature.settings.data.remote.BalanceFetcher
 import com.aiverse.feature.settings.data.remote.UpdateAsset
 import com.aiverse.feature.settings.data.remote.UpdateCheckResult
 import com.aiverse.feature.settings.data.remote.UpdateCheckService
 import com.aiverse.feature.settings.data.repository.UpdateCheckSettingsRepository
+import com.aiverse.feature.settings.data.repository.InputBarPrefs
+import com.aiverse.feature.settings.data.repository.InputBarSettingsRepository
+import com.aiverse.feature.settings.data.repository.BalanceSettingsRepository
 import com.aiverse.feature.settings.data.repository.UpdateChannel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aiverse.feature.settings.data.repository.AppThemeMode
@@ -100,6 +104,7 @@ import com.aiverse.feature.settings.data.repository.VisionModelSettingsRepositor
 import com.aiverse.feature.workspace.domain.model.RemoteConnection
 import com.aiverse.feature.workspace.domain.repository.RemoteRepository
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
+import com.aiverse.feature.settings.domain.model.BalanceConfig
 import com.aiverse.feature.settings.domain.model.DashboardContext
 import com.aiverse.feature.settings.domain.model.ModelMetadata
 import com.aiverse.feature.settings.domain.model.modelMetadataKey
@@ -419,6 +424,9 @@ class SettingsViewModel @Inject constructor(
     private val providerDashboardRunner: ProviderDashboardRunner,
     private val terminalSettingsRepository: TerminalSettingsRepository,
     private val proxySettingsRepository: ProxySettingsRepository,
+    private val inputBarSettingsRepository: InputBarSettingsRepository,
+    private val balanceSettingsRepository: BalanceSettingsRepository,
+    private val balanceFetcher: BalanceFetcher,
     private val okHttpClient: OkHttpClient
 ) : ViewModel() {
     private companion object {
@@ -441,6 +449,36 @@ class SettingsViewModel @Inject constructor(
     /** 终端个性化配置。 */
     val terminalSettings: StateFlow<TerminalSettings> = terminalSettingsRepository.settingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalSettings())
+
+    /** 输入框快捷栏可开关项快照（订阅仓库单一真源，设置页与对话页即时同步）。 */
+    val inputBarPrefs: StateFlow<InputBarPrefs> = inputBarSettingsRepository.inputBarPrefs
+
+    /** 余额查询结果（providerId -> Result），供模型编辑页「余额信息」项显示查到的额度。 */
+    private val _balanceResults = MutableStateFlow<Map<String, Result<String>>>(emptyMap())
+    val balanceResults: StateFlow<Map<String, Result<String>>> = _balanceResults.asStateFlow()
+
+    /** 取某提供商的余额配置；不适配（非 deepseek/硅基流动）返回 null。 */
+    fun balanceConfigFor(provider: AIProviderConfig?): BalanceConfig? =
+        provider?.let { balanceSettingsRepository.configFor(it) }
+
+    /** 更新某提供商的余额配置（模型编辑页「余额信息」开关/字段变更时落盘）。 */
+    fun updateBalanceConfig(providerId: String, config: BalanceConfig) {
+        balanceSettingsRepository.updateConfig(providerId, config)
+    }
+
+    /** 刷新某提供商余额（编辑页「余额信息」标题下显示）。 */
+    fun refreshBalanceFor(provider: AIProviderConfig) {
+        val config = balanceSettingsRepository.configFor(provider) ?: return
+        if (!config.enabled) return
+        viewModelScope.launch {
+            _balanceResults.value = _balanceResults.value + (provider.id to balanceFetcher.fetchBalance(config, provider))
+        }
+    }
+
+    /** 更新输入框快捷栏开关并落盘。 */
+    fun updateInputBarPrefs(newPrefs: InputBarPrefs) {
+        inputBarSettingsRepository.updateInputBarPrefs(newPrefs)
+    }
 
     fun setTerminalTheme(themeId: String) {
         viewModelScope.launch { terminalSettingsRepository.setThemeId(themeId) }
@@ -1965,11 +2003,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 应用内安装是否可用：只对正式包开放。beta/debug 变体的 applicationId 带后缀
-     * （`com.aiverse.beta` / `com.aiverse.debug`），装 GitHub 上的正式包等于「装上第二个 App」，
-     * 包名自检也会把它拦下——索性不给下载入口，省掉一次十几 MB 的白下载。
-     */
+    /** 应用内安装是否可用：正式包与测试变体（debug/beta）都开放，测试变体用于验证更新链路。 */
     val inAppInstallSupported: Boolean
         get() = context.packageName == RELEASE_APPLICATION_ID ||
             context.packageName.endsWith(".debug") || context.packageName.endsWith(".beta")
@@ -2012,7 +2046,6 @@ class SettingsViewModel @Inject constructor(
             )
             val result = apkDownloader.download(
                 url = asset.url,
-                mirror = updateCheckSettingsRepository.downloadMirror,
                 fileName = "AiVerse-${target.latestTag}.apk",
                 expectedSize = asset.size,
                 expectedSha256 = asset.sha256

@@ -201,8 +201,8 @@ class GitRepositoryTest {
     @Test
     fun log_parsesFields() = runTest {
         val repo = createRepo(
-            "a1b2c3d4\u001fa1b2c3\u001fAlice\u001f2 days ago\u001ffix: 问题\n" +
-                "e5f6a7b8\u001fe5f6a7\u001fBob\u001f3 days ago\u001ffeat: 新功能"
+            "a1b2c3d4\u001fa1b2c3\u001fAlice\u001f2 days ago\u001ffix: 问题\u0000" +
+                "e5f6a7b8\u001fe5f6a7\u001fBob\u001f3 days ago\u001ffeat: 新功能\u0000"
         )
         val commits = repo.log(limit = 50)
         assertEquals(
@@ -308,8 +308,8 @@ class GitRepositoryTest {
     @Test
     fun graph_parsesCommitsAndFiltersRefs() = runTest {
         val repo = createRepo(
-            "aaaa1111\u001faaaa1111\u001fAlice\u001f2 days ago\u001ffix: 修复 | 分号\u001fbbbb2222\u001f正文单行\n" +
-                "bbbb2222\u001fbbbb2222\u001fBob\u001f3 days ago\u001ffeat: init\u001f"
+            "aaaa1111\u001faaaa1111\u001fAlice\u001f2 days ago\u001ffix: 修复 | 分号\u001fbbbb2222\u001f正文单行\u0000" +
+                "bbbb2222\u001fbbbb2222\u001fBob\u001f3 days ago\u001ffeat: init\u001f\u0000"
         )
         val refs = mapOf(
             "aaaa1111" to listOf(GitGraphRef("main", isBranch = true, isCurrent = true, isRemote = false)),
@@ -341,8 +341,8 @@ class GitRepositoryTest {
         )
         // 模拟极端情况下新批次仍含已加载提交（--skip 理论上避免，防御性去重）
         val repo = createRepo(
-            "aaaa1111\u001faaaa1111\u001fAlice\u001f2 days ago\u001fnewer\u001fbbbb2222\u001f\n" +
-                "bbbb2222\u001fbbbb2222\u001fBob\u001f3 days ago\u001folder\u001f"
+            "aaaa1111\u001faaaa1111\u001fAlice\u001f2 days ago\u001fnewer\u001fbbbb2222\u001f\u0000" +
+                "bbbb2222\u001fbbbb2222\u001fBob\u001f3 days ago\u001folder\u001f\u0000"
         )
         val graph = repo.graphAppend(existing, emptyMap(), limit = 100)
         assertEquals(listOf("aaaa1111", "bbbb2222"), graph.commits.map { it.hash })
@@ -362,10 +362,10 @@ class GitRepositoryTest {
     @Test
     fun graphAppend_mergeCommit_computesMergeLanes() = runTest {
         val repo = createRepo(
-            "m1m1m1\u001fm1m1m1\u001fAlice\u001f2 days ago\u001fMerge branch 'feat'\u001fp1p1p1 p2p2p2\u001f\n" +
-                "p1p1p1\u001fp1p1p1\u001fBob\u001f3 days ago\u001ffeat: x\u001fr0r0r0\u001f\n" +
-                "p2p2p2\u001fp2p2p2\u001fCarol\u001f3 days ago\u001ffeat: y\u001fr0r0r0\u001f\n" +
-                "r0r0r0\u001fr0r0r0\u001fDan\u001f4 days ago\u001froot\u001f"
+            "m1m1m1\u001fm1m1m1\u001fAlice\u001f2 days ago\u001fMerge branch 'feat'\u001fp1p1p1 p2p2p2\u001f\u0000" +
+                "p1p1p1\u001fp1p1p1\u001fBob\u001f3 days ago\u001ffeat: x\u001fr0r0r0\u001f\u0000" +
+                "p2p2p2\u001fp2p2p2\u001fCarol\u001f3 days ago\u001ffeat: y\u001fr0r0r0\u001f\u0000" +
+                "r0r0r0\u001fr0r0r0\u001fDan\u001f4 days ago\u001froot\u001f\u0000"
         )
         val graph = repo.graph(limit = 100)
         assertTrue(graph.commits[0].isMerge)
@@ -377,9 +377,9 @@ class GitRepositoryTest {
     @Test
     fun graph_fork_branchesToSeparateLanes() = runTest {
         val repo = createRepo(
-            "c1c1c1\u001fc1c1c1\u001fAlice\u001f2 days ago\u001fbranch A\u001fr0r0r0\u001f\n" +
-                "c2c2c2\u001fc2c2c2\u001fBob\u001f2 days ago\u001fbranch B\u001fr0r0r0\u001f\n" +
-                "r0r0r0\u001fr0r0r0\u001fDan\u001f4 days ago\u001froot\u001f"
+            "c1c1c1\u001fc1c1c1\u001fAlice\u001f2 days ago\u001fbranch A\u001fr0r0r0\u001f\u0000" +
+                "c2c2c2\u001fc2c2c2\u001fBob\u001f2 days ago\u001fbranch B\u001fr0r0r0\u001f\u0000" +
+                "r0r0r0\u001fr0r0r0\u001fDan\u001f4 days ago\u001froot\u001f\u0000"
         )
         val graph = repo.graph(limit = 100)
         assertEquals(mapOf("c1c1c1" to 0, "c2c2c2" to 1, "r0r0r0" to 0), graph.lanes)

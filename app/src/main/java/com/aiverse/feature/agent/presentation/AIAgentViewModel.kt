@@ -32,14 +32,20 @@ import com.aiverse.feature.agent.data.local.entity.ChatSessionEntity
 import com.aiverse.feature.agent.domain.container.ContainerInitState
 import com.aiverse.feature.agent.domain.container.ContainerOsDetector
 import com.aiverse.feature.agent.domain.container.LinuxContainerEngine
+import com.aiverse.feature.settings.domain.model.AIProviderConfig
+import com.aiverse.feature.settings.domain.model.BalanceConfig
 import com.aiverse.feature.settings.domain.model.ProviderType
 import com.aiverse.feature.settings.domain.service.ModelCostCalculator
 import com.aiverse.feature.settings.domain.repository.AIProviderRepository
 import com.aiverse.feature.settings.data.repository.AgentSoundSettingsRepository
+import com.aiverse.feature.settings.data.repository.BalanceSettingsRepository
+import com.aiverse.feature.settings.data.remote.BalanceFetcher
 import com.aiverse.feature.settings.data.repository.ContainerSettingsRepository
 import com.aiverse.feature.settings.data.repository.DefaultModelSettingsRepository
 import com.aiverse.feature.settings.data.repository.ExecutionMode
 import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
+import com.aiverse.feature.settings.data.repository.InputBarPrefs
+import com.aiverse.feature.settings.data.repository.InputBarSettingsRepository
 import com.aiverse.feature.settings.data.repository.KeepaliveSettingsRepository
 import com.aiverse.feature.settings.data.repository.LiveNotificationSettingsRepository
 import com.aiverse.feature.settings.data.repository.ApprovalNotificationSettingsRepository
@@ -110,6 +116,7 @@ import com.aiverse.feature.agent.presentation.AgentAttachment
 import com.aiverse.feature.agent.presentation.notification.AgentLiveNotificationManager
 import com.aiverse.feature.agent.presentation.notification.AgentApprovalNotificationManager
 import com.aiverse.feature.agent.presentation.notification.AgentApprovalNotificationManager.ApprovalKind
+import com.aiverse.feature.agent.presentation.component.BalanceCapsuleState
 import com.aiverse.feature.agent.presentation.component.RewindOption
 import com.aiverse.feature.agent.presentation.component.toolRunningLabelRes
 import com.aiverse.feature.agent.presentation.component.formatTokenCount
@@ -188,6 +195,9 @@ class AIAgentViewModel @Inject constructor(
     private val todoItemDao: TodoItemDao,
     val fileAccess: FileAccessProvider,
     private val fileChangeHub: FileChangeHub,
+    private val inputBarSettingsRepository: InputBarSettingsRepository,
+    private val balanceSettingsRepository: BalanceSettingsRepository,
+    private val balanceFetcher: BalanceFetcher,
     @param:ApplicationContext private val context: Context
 ) : ViewModel(), SlashCommandContext {
 
@@ -1144,6 +1154,87 @@ class AIAgentViewModel @Inject constructor(
     private val _contextUsages = MutableStateFlow<Map<String, AgentEvent.ContextUsage>>(emptyMap())
     val contextUsages: StateFlow<Map<String, AgentEvent.ContextUsage>> = _contextUsages.asStateFlow()
 
+    private val _webSearchEnabled = MutableStateFlow(inputBarSettingsRepository.webSearchEnabled)
+    val webSearchEnabled: StateFlow<Boolean> = _webSearchEnabled.asStateFlow()
+
+    /** 各提供商余额状态（providerId -> state），仅供适配余额查询的提供商存在。 */
+    private val _balanceStates = MutableStateFlow<Map<String, BalanceCapsuleState>>(emptyMap())
+    val balanceStates: StateFlow<Map<String, BalanceCapsuleState>> = _balanceStates.asStateFlow()
+
+    /** 取某提供商余额状态；不适配（非 deepseek/硅基流动）或当前未开启时仍返回（UI 可显示胶囊）。 */
+    fun balanceStateFor(provider: AIProviderConfig?): BalanceCapsuleState? {
+        if (provider == null) return null
+        val config = balanceSettingsRepository.configFor(provider) ?: return null
+        return _balanceStates.value[provider.id] ?: BalanceCapsuleState(
+            providerId = provider.id,
+            enabled = config.enabled,
+            text = null,
+            loading = false,
+            error = null,
+            config = config
+        )
+    }
+
+    /** 切换某提供商「获取余额」开关（胶囊左右滑动）。 */
+    fun toggleBalanceEnabled(provider: AIProviderConfig, enabled: Boolean) {
+        val config = balanceSettingsRepository.configFor(provider) ?: return
+        val updated = config.copy(enabled = enabled)
+        balanceSettingsRepository.updateConfig(provider.id, updated)
+        val cur = _balanceStates.value[provider.id]
+            ?: BalanceCapsuleState(provider.id, updated.enabled, null, false, null, updated)
+        _balanceStates.value = _balanceStates.value + (provider.id to cur.copy(
+            enabled = enabled,
+            config = updated,
+            text = if (enabled) cur.text else null,
+            error = if (enabled) cur.error else null
+        ))
+        if (enabled) refreshBalance(provider)
+    }
+
+    /** 刷新某提供商余额（点击胶囊；由快捷栏 showBalance 控制显示，不再受 config.enabled 拦截）。 */
+    fun refreshBalance(provider: AIProviderConfig) {
+        val config = balanceSettingsRepository.configFor(provider) ?: return
+        val id = provider.id
+        val cur = _balanceStates.value[id]
+            ?: BalanceCapsuleState(id, config.enabled, null, false, null, config)
+        _balanceStates.value = _balanceStates.value + (id to cur.copy(loading = true, error = null))
+        viewModelScope.launch {
+            val result = balanceFetcher.fetchBalance(config, provider)
+            _balanceStates.value = _balanceStates.value + (id to cur.copy(
+                loading = false,
+                text = result.getOrNull(),
+                error = result.exceptionOrNull()?.message
+            ))
+        }
+    }
+
+    /** 保存某提供商余额配置（自定义弹窗保存）。 */
+    fun saveBalanceConfig(provider: AIProviderConfig, config: BalanceConfig) {
+        balanceSettingsRepository.updateConfig(provider.id, config)
+        val cur = _balanceStates.value[provider.id]
+            ?: BalanceCapsuleState(provider.id, config.enabled, null, false, null, config)
+        _balanceStates.value = _balanceStates.value + (provider.id to cur.copy(
+            config = config,
+            enabled = config.enabled
+        ))
+        if (config.enabled) refreshBalance(provider)
+    }
+
+
+    /** 输入框快捷栏可开关项快照（订阅仓库单一真源，设置页改动即时生效）。 */
+    val inputBarPrefs: StateFlow<InputBarPrefs> = inputBarSettingsRepository.inputBarPrefs
+
+    /** 自动压缩触发阈值（上下文窗口百分比），订阅仓库单一真源，设置页改动即时生效。 */
+    val compactionThresholdPercent: StateFlow<Int> = generalSettingsRepository.compactionThresholdPercentFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 85)
+
+    /** 切换联网搜索工具启用状态（输入框快捷栏开关）。 */
+    fun toggleWebSearch() {
+        val new = !_webSearchEnabled.value
+        _webSearchEnabled.value = new
+        inputBarSettingsRepository.webSearchEnabled = new
+    }
+
     private val _llmCallEvents = MutableSharedFlow<LlmCallEvent>(extraBufferCapacity = 16)
     /** 每次单次 LLM 请求返回事件（携带单次 Token 统计）。 */
     val llmCallEvents: SharedFlow<LlmCallEvent> = _llmCallEvents.asSharedFlow()
@@ -1585,6 +1676,7 @@ class AIAgentViewModel @Inject constructor(
                     }
                     SubAgentEventType.MESSAGE_FROM_PARENT -> deliverMessageToSubAgent(event)
                     SubAgentEventType.MESSAGE_FROM_SUB -> deliverMessageToParent(event)
+                    SubAgentEventType.MESSAGE_FROM_PEER -> deliverMessageToPeer(event)
                 }
             }
         }
@@ -1739,6 +1831,50 @@ class AIAgentViewModel @Inject constructor(
             message = event.detail,
             fromParent = false
         )
+    }
+
+    /**
+     * 子代理→子代理对等互通（专家模式）：**只按 [SubAgentEvent.targetSubSessionId] 投递**，
+     * 不解析消息文字里的名字，避免名字歧义导致误投。序号 [SubAgentEvent.seq] 随消息送达。
+     */
+    private suspend fun deliverMessageToPeer(event: SubAgentEvent) {
+        val target = event.targetSubSessionId
+        if (target.isBlank()) {
+            FileLogger.w("AIAgentViewModel", "peer 消息缺少目标 id，丢弃: from=${event.subSessionId} seq=${event.seq}")
+            return
+        }
+        val senderTitle = sessionUseCase.getSessionById(event.subSessionId)?.title ?: "专家"
+        deliverAgentMessage(
+            recipientSessionId = target,
+            senderSessionId = event.subSessionId,
+            senderTitle = senderTitle,
+            message = event.detail,
+            fromParent = false
+        )
+        // 主代理知情：A→B 已直接发送，仅通知不触发新一轮；主代理下次响应时据此不再重复向 B 发送。
+        notifyParentPeerSent(event, senderTitle)
+    }
+
+    /**
+     * 向父会话（主代理）落一条「专家对等通知」：某子代理已向兄弟直接发送消息。
+     * 仅持久化不触发新一轮，主代理在其后续响应读到即知情，避免重复向目标发送。
+     * 内容带系统通知前缀，UI 不渲染为普通用户气泡，模型亦识别为通知而非用户指令。
+     */
+    private suspend fun notifyParentPeerSent(event: SubAgentEvent, senderTitle: String) {
+        val parentId = event.parentSessionId
+        if (parentId.isBlank()) return
+        val peerTitle = sessionUseCase.getSessionById(event.targetSubSessionId)?.title ?: "专家"
+        val now = System.currentTimeMillis()
+        agentMessageDao.insert(
+            AgentMessageEntity(
+                id = UUID.randomUUID().toString(),
+                sessionId = parentId,
+                role = MessageRole.USER.name,
+                content = "$BACKGROUND_NOTIFICATION_PREFIX [专家对等通知] $senderTitle 已向 $peerTitle 直接发送消息（序号 ${event.seq}）：${event.detail.take(200)}。仅知情，无需转发或重复发送。",
+                timestamp = now
+            )
+        )
+        FileLogger.d("AIAgentViewModel", "peer 通知已落库父会话: from=${event.subSessionId} to=${event.targetSubSessionId} parent=$parentId seq=${event.seq}")
     }
 
     /**
@@ -2154,7 +2290,10 @@ class AIAgentViewModel @Inject constructor(
                     allTools.filter { it.name in allowed }
                 }
                 isSub -> allTools.filterNot { it.name == AgentDefinition.NESTED_TOOL }
-                else -> allTools.filterNot { it.name == AgentDefinition.PARENT_MESSAGE_TOOL }
+                else -> allTools.filterNot {
+                    it.name == AgentDefinition.PARENT_MESSAGE_TOOL ||
+                        it.name == AgentDefinition.PEER_MESSAGE_TOOL
+                }
             }.let { list ->
                 // goal 自主循环期间禁用 PLAN（其退出门禁需人工审查）；非 goal 期间不暴露 goalStatus 工具。
                 if (goalActive) list.filterNot { it.name == "planMode" }

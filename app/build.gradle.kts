@@ -400,6 +400,9 @@ dependencies {
     implementation("org.apache.ftpserver:ftpserver-core:1.2.0")
     implementation("org.slf4j:slf4j-simple:2.0.9")
 
+    // 头像图片加载（GitHub 作者头像，按作者名拼 URL，无需用户手动输入）
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     // 容器：解压 Alpine rootfs tar.gz（正确处理 symlink/hardlink/权限位）
     implementation("org.apache.commons:commons-compress:1.26.2")
     // xz 解压支持：commons-compress 的 XZCompressorInputStream 依赖此库（解压用户导入的 .tar.xz 镜像）
@@ -417,6 +420,9 @@ dependencies {
 
     // Lucide Icons
     implementation("br.com.devsrsouza.compose.icons:feather:1.1.1")
+
+    // Huge Icons（余额/额度图标，与 rikkahub 同款：袋装金钱等）
+    implementation("com.github.rikkahub:hugeicons-compose:1.5")
 
     // 可拖拽排序列表（长按拖拽手势，提供商排序用）
     implementation("sh.calvin.reorderable:reorderable:3.1.0")

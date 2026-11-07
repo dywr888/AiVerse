@@ -11,18 +11,38 @@ import com.aiverse.feature.git.domain.model.GraphEdge
  */
 internal object GitGraphBuilder {
 
-    /** 解析 `git log --pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%P%x1f%b` 输出为 [GraphCommit] 列表。 */
+    /**
+     * 解析 `git log -z --pretty=format:%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%P%x1f%b` 输出为 [GraphCommit] 列表。
+     * -z（NUL 分隔提交）比 %x1e 更底层可靠：busybox/旧 git 也支持 NUL，且 body(%b) 多行不再破坏按提交解析。
+     * %x1f 为字段分隔；co-author 从 body 解析 `Co-authored-by:` 行，兼容所有 git 版本（不依赖 %(trailers) 占位符，
+     * 旧版 git 不支持该占位符会导致协作作者缺失）。
+     */
     fun parseGraphCommits(raw: String): List<GraphCommit> =
-        raw.split('\n').mapNotNull { line ->
+        raw.split('\u0000').mapNotNull { rec ->
+            if (rec.isBlank()) return@mapNotNull null
             // 字段用 0x1f 分隔：提交信息/作者名可能含 '|'（实测 7aba60f 提交信息含 '|' 曾导致
             // split('|') 把 parents 解析成假父，提交被误判为 merge 并产生幽灵泳道）。
-            val parts = line.removeSuffix("\r").split('\u001f')
+            val parts = rec.removeSuffix("\r").split('\u001f')
             if (parts.size < 6) null
             else {
                 val parents = parts[5].split(' ').filter { it.isNotBlank() }
-                GraphCommit(parts[0], parts[1], parts[2], parts[3], parts[4], parents = parents, body = parts.getOrNull(6) ?: "")
+                GraphCommit(
+                    parts[0], parts[1], parts[2], parts[3], parts[4],
+                    parents = parents,
+                    body = parts.getOrNull(6) ?: "",
+                    coAuthors = parseCoAuthorsFromBody(parts.getOrNull(6) ?: "")
+                )
             }
         }
+
+    /** 从 body 文本解析 `Co-authored-by: Name <email>` 行 → 协作作者名（`Name <email>` → `Name`）。 */
+    private fun parseCoAuthorsFromBody(body: String): List<String> =
+        body.lines()
+            .map { it.trim() }
+            .filter { it.startsWith("Co-authored-by:", ignoreCase = true) }
+            .map { it.substringAfter(":").trim() }
+            .map { it.substringBefore('<').trim().ifEmpty { it } }
+            .filter { it.isNotEmpty() }
 
     /**
      * 对完整提交列表重算泳道布局并组装 [GitGraph]。[refs] 为外部传入的全量 refs-by-commit 映射，

@@ -60,14 +60,14 @@ class ApkDownloader @Inject constructor(
     }
 
     /**
-     * 下载 [url] 指向的更新包。[mirror] 非空且合法时先试镜像，再回退直连。
+     * 下载 [url] 指向的更新包。固定尝试三个地址（与设置里的镜像源无关）：
+     * ① gitcode 镜像（[buildGitcodeUrl]）→ ② 直连 GitHub → ③ v6.gh-proxy.org 镜像。
      *
      * [expectedSize] / [expectedSha256] 任一不符都视为该地址失败（继续换下一个地址），
      * 因为镜像返回 HTML 错误页或半截文件时 HTTP 状态码可能仍是 200。
      */
     suspend fun download(
         url: String,
-        mirror: String,
         fileName: String,
         expectedSize: Long,
         expectedSha256: String?,
@@ -81,8 +81,9 @@ class ApkDownloader @Inject constructor(
         val dest = File(dir, fileName)
 
         val candidates = buildList {
-            buildDownloadUrl(url, mirror).takeIf { it != url }?.let(::add)
+            buildGitcodeUrl(url)?.let(::add)
             add(url)
+            buildDownloadUrl(url, V6_MIRROR).takeIf { it != url }?.let(::add)
         }
 
         var lastError = ""
@@ -336,6 +337,17 @@ class ApkDownloader @Inject constructor(
 
     private data class HeadInfo(val contentLength: Long, val rangeSupported: Boolean)
 
+    /**
+     * 把 GitHub 原始 release 下载地址转成 gitcode 镜像（固定仓库 `qldwi/aiverse`，与设置镜像源无关）。
+     * 仅当 URL 含 `/releases/download/` 时生效，否则返回 null（跳过该镜像）。
+     */
+    private fun buildGitcodeUrl(original: String): String? {
+        val marker = "/releases/download/"
+        val idx = original.indexOf(marker)
+        if (idx < 0) return null
+        return "https://gitcode.com/qldwi/aiverse" + original.substring(idx)
+    }
+
     private companion object {
         const val UPDATE_DIR = "update"
         const val CHUNKS = 64
@@ -345,5 +357,7 @@ class ApkDownloader @Inject constructor(
         const val READ_TIMEOUT_SECONDS = 30L
         const val PROGRESS_INTERVAL_MS = 100L
         const val UNKNOWN_ERROR = "下载失败"
+        /** 固定备选镜像（与设置里的镜像源无关，仅当直连也失败时使用）。 */
+        const val V6_MIRROR = "https://v6.gh-proxy.org/"
     }
 }

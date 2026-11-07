@@ -1,11 +1,13 @@
 package com.aiverse.feature.git.presentation.component
 
 import android.content.ClipData
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -116,6 +118,10 @@ fun GitScreen(
     var showCommitDialog by remember { mutableStateOf(false) }
     var showPullConfirm by remember { mutableStateOf(false) }
     var showMasterRenameConfirm by remember { mutableStateOf(false) }
+    // 提交者列表页：非 null 时全屏覆盖，显示某提交的全部提交者。
+    var contributors by remember { mutableStateOf<List<String>?>(null) }
+    // 打开作者页前若正显示提交详情弹窗，保存其 hash 以便系统返回时恢复详情页。
+    var savedDetailHash by remember { mutableStateOf<String?>(null) }
 
     // 三个 tab 的滚动状态统一提升到页面层，聚合出「是否正在滚动」用于底部 tab 栏滚动弱化。
     val statusListState = rememberLazyListState()
@@ -287,7 +293,13 @@ fun GitScreen(
                             onLoadMore = viewModel::loadMoreCommits,
                             onCreateBranchAtCommit = { name, hash -> viewModel.createBranch(name, hash, false) },
                             onCreateTagAtCommit = { name, hash -> viewModel.createTag(name, hash) },
-                            onResetToCommit = { hash, mode -> viewModel.resetToCommit(hash, mode) }
+                            onResetToCommit = { hash, mode -> viewModel.resetToCommit(hash, mode) },
+                            onShowContributors = { authors ->
+                                contributors = authors
+                                // 若正显示提交详情弹窗，保存 hash 后关闭，避免作者页覆盖在弹窗上
+                                savedDetailHash = state.commitDetailHash
+                                viewModel.closeCommitDetail()
+                            }
                         )
                     }
                 }
@@ -377,6 +389,16 @@ fun GitScreen(
                 viewModel.commit(msg, amend)
             }
         )
+    }
+
+    // 提交者列表页（全屏覆盖）：点击作者头像/名字/加号跳转到这里查看全部提交者。
+    contributors?.let { authors ->
+        ContributorsScreen(authors = authors, onBack = {
+            contributors = null
+            // 从详情弹窗进入时，系统返回恢复详情页
+            savedDetailHash?.let { viewModel.openCommitDetail(it) }
+            savedDetailHash = null
+        })
     }
 }
 
@@ -877,4 +899,56 @@ private fun CommitDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
+}
+
+/** 提交者列表页：显示某个提交的全部提交者（作者 + 协作），带返回。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ContributorsScreen(
+    authors: List<String>,
+    onBack: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = settingsPageBackground()
+    ) {
+        // 系统返回键应关闭本页返回提交列表，而不是退出整个 Git 导航回到主页面。
+        BackHandler(onBack = onBack)
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text(stringResource(R.string.git_contributors_title, authors.size)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(FeatherIcons.ArrowLeft, contentDescription = stringResource(R.string.common_back))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = settingsPageBackground())
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm)
+            ) {
+                itemsIndexed(authors) { i, a ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        AuthorAvatar(name = a, size = 32.dp)
+                        Text(
+                            text = if (i == 0) {
+                                stringResource(R.string.git_contributor_author, a)
+                            } else {
+                                stringResource(R.string.git_contributor_coauthor, a)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

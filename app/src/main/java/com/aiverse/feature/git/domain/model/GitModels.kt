@@ -18,8 +18,13 @@ data class GitCommit(
     val shortHash: String,
     val author: String,
     val date: String,
-    val message: String
-)
+    val message: String,
+    /** Co-authored-by 协作作者（不含 author 本人），可能多个。 */
+    val coAuthors: List<String> = emptyList()
+) {
+    /** 全部作者：第一作者 + 协作作者。 */
+    val allAuthors: List<String> get() = listOf(author) + coAuthors
+}
 
 data class GitBranch(
     val name: String,

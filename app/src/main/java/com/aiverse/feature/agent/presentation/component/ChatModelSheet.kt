@@ -1,7 +1,6 @@
 package com.aiverse.feature.agent.presentation.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,10 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aiverse.R
-import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.ui.AppSwitch
 import com.aiverse.feature.agent.domain.model.ReasoningCapability
@@ -45,7 +42,6 @@ import com.aiverse.feature.agent.domain.model.ReasoningPlan
 import com.aiverse.feature.agent.domain.provider.ReasoningProtocol
 import com.aiverse.feature.agent.domain.provider.ReasoningResolver
 import com.aiverse.feature.agent.domain.provider.preferredOnLevel
-import com.aiverse.feature.agent.domain.provider.selectableLevelsForUi
 import com.aiverse.feature.agent.domain.provider.showsThinkingToggle
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.settings.data.remote.ModelTestResult
@@ -134,44 +130,43 @@ internal fun ReasoningEffortSelector(
     val plan = remember(effort, capability, protocol, model) {
         ReasoningResolver.plan(protocol, model, effort.apiValue, capability)
     }
-    val levels = remember(capability) { capability.selectableLevelsForUi() }
-    val thinkingOn = effort != ReasoningEffort.NONE
-    // 输入栏里只显示「实际会生效」的短名：真被降级时显示降级后的档位，关得掉才显示「不思考」。
-    val barLabel = when {
-        plan.isDisableRequested && plan.reason != ReasoningPlan.Reason.CANNOT_DISABLE ->
-            stringResource(R.string.chat_reasoning_off_short)
-        plan.effectiveLevel != null -> stringResource(plan.effectiveLevel!!.labelRes())
-        else -> stringResource(effort.labelRes())
+    // rikkahub 固定 7 档：关闭/自动/低/中/高/超高/最大（自动=开思考但不指定强度，服务端用模型默认）。
+    val sliderLevels = listOf(
+        ReasoningEffort.NONE,
+        ReasoningEffort.AUTO,
+        ReasoningEffort.LOW,
+        ReasoningEffort.MEDIUM,
+        ReasoningEffort.HIGH,
+        ReasoningEffort.XHIGH,
+        ReasoningEffort.MAX
+    )
+    val sliderLabels = reasoningLevelLabels(sliderLevels)
+    val sliderCurrentIndex = remember(effort, capability, sliderLevels) {
+        sliderLevels.indexOf(effort).takeIf { it >= 0 }
+            ?: sliderLevels.indexOfFirst { it == capability.defaultLevel }.takeIf { it >= 0 }
+            ?: sliderLevels.indexOf(ReasoningEffort.AUTO).coerceAtLeast(0)
     }
+    // 模型思考恒开时无「关闭」档（滑块不把关闭当粒子关闭判定）。
+    val sliderClosedIndex = if (capability.canDisable) sliderLevels.indexOf(ReasoningEffort.NONE) else -1
+    val thinkingOn = effort != ReasoningEffort.NONE
+    // 闪电颜色：开启=蓝色，关闭=可见灰（onSurfaceVariant，像其他图标一样能看见，不是纯白填充看不见）；禁用半透明。
     val tint = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-        thinkingOn -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        thinkingOn -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    // 闪电 + 当前档位：整块可点，点开同一个弹层。
-    Row(
-        modifier = Modifier
-            .height(36.dp)
-            .clip(RoundedCornerShape(Radius.sm))
-            .clickable(enabled = enabled) { showSheet = true }
-            .padding(horizontal = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically
+    // 闪电入口：整块可点，点开同一个弹层。
+    IconButton(
+        onClick = { showSheet = true },
+        enabled = enabled,
+        modifier = Modifier.size(36.dp)
     ) {
         Icon(
             FeatherIcons.Zap,
             contentDescription = stringResource(effort.labelRes()),
             tint = tint,
             modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(2.dp))
-        Text(
-            text = barLabel,
-            style = MaterialTheme.typography.labelMedium,
-            color = tint,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 64.dp)
         )
     }
 
@@ -221,64 +216,25 @@ internal fun ReasoningEffortSelector(
 
                 ReasoningHintLines(plan = plan, capability = capability)
 
-                levels.forEach { e ->
-                    val selected = thinkingOn && e == effort
-                    // 想关却关不掉时，把「实际会发的档位」标出来，避免用户以为思考真的停了。
-                    val effectiveWhenOff = !thinkingOn &&
-                        plan.reason == ReasoningPlan.Reason.CANNOT_DISABLE &&
-                        plan.effectiveLevel == e
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .clickable(enabled = enabled) {
-                                showSheet = false
-                                onChange(e)
-                            }
-                            .padding(horizontal = Spacing.md, vertical = Spacing.md),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            FeatherIcons.Zap,
-                            contentDescription = null,
-                            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(Spacing.md))
-                        Text(
-                            text = e.withApiLabel(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (e == capability.defaultLevel) {
-                            Text(
-                                text = stringResource(R.string.chat_reasoning_default_tag),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (effectiveWhenOff) {
-                            Spacer(Modifier.width(Spacing.sm))
-                            Text(
-                                text = stringResource(R.string.chat_reasoning_effective_tag),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        if (selected) {
-                            Spacer(Modifier.width(Spacing.sm))
-                            Icon(
-                                FeatherIcons.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                // rikkahub 7 档：关闭/自动/低/中/高/超高/最大。左右拖动选档，松手吸附并生效。
+                ReasoningSlider(
+                    levels = sliderLabels,
+                    currentIndex = sliderCurrentIndex,
+                    closedIndex = sliderClosedIndex,
+                    enabled = enabled,
+                    onChange = { idx ->
+                        // 选档后不自动关闭：用户手动点击空白处关闭。
+                        onChange(sliderLevels[idx])
                     }
-                }
+                )
+
+                // 免责说明：档位定义参考模型官方文档，实际行为以官方文档为准。
+                Text(
+                    text = stringResource(R.string.chat_reasoning_disclaimer),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = Spacing.sm)
+                )
             }
         }
     }
@@ -320,12 +276,21 @@ private fun ReasoningEffort.withApiLabel(): String =
 
 private fun ReasoningEffort.labelRes(): Int = when (this) {
     ReasoningEffort.NONE -> com.aiverse.R.string.chat_reasoning_effort_none
+    ReasoningEffort.AUTO -> com.aiverse.R.string.chat_reasoning_effort_auto
     ReasoningEffort.MINIMAL -> com.aiverse.R.string.chat_reasoning_effort_minimal
     ReasoningEffort.LOW -> com.aiverse.R.string.chat_reasoning_effort_low
     ReasoningEffort.MEDIUM -> com.aiverse.R.string.chat_reasoning_effort_medium
     ReasoningEffort.HIGH -> com.aiverse.R.string.chat_reasoning_effort_high
     ReasoningEffort.XHIGH -> com.aiverse.R.string.chat_reasoning_effort_xhigh
     ReasoningEffort.MAX -> com.aiverse.R.string.chat_reasoning_effort_max
+}
+
+/** 滑块档位名称（纯中文，不含接口值）：Composable 包装以便逐个 stringResource。 */
+@Composable
+private fun reasoningLevelLabels(levels: List<ReasoningEffort>): List<String> {
+    val out = ArrayList<String>(levels.size)
+    for (l in levels) out.add(stringResource(l.labelRes()))
+    return out
 }
 
 /**

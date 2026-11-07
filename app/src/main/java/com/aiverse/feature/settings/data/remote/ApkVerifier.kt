@@ -33,7 +33,7 @@ sealed interface ApkVerifyResult {
  *
  * 签名一致是安全锚：更新包可能来自第三方镜像，sha256 摘要只证明「传输过程中没被改」，
  * 而签名一致才证明「这就是同一个开发者签的包」。签名不符时一律拒绝安装，引导用户改用
- * 浏览器手动下载——这同时覆盖了 F-Droid 版、beta/debug 变体、本地无 keystore 的 release 包。
+ * 浏览器手动下载——这同时覆盖了 F-Droid 版、本地无 keystore 的 release 包。
  */
 @Singleton
 class ApkVerifier @Inject constructor(

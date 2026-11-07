@@ -7,6 +7,8 @@ package com.aiverse.feature.agent.domain.model
  */
 enum class ReasoningEffort(val apiValue: String) {
     NONE("none"),
+    /** 自动：开思考但不指定强度（服务端用模型默认），等价于不设置 effort 参数。 */
+    AUTO("auto"),
     MINIMAL("minimal"),
     LOW("low"),
     MEDIUM("medium"),
