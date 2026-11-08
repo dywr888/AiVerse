@@ -181,6 +181,8 @@
     <string name="search_provider_result_size_desc">每次搜索返回的结果数（1-20）</string>
     <string name="search_provider_save">保存</string>
     <string name="search_provider_cancel">取消</string>
+    <string name="search_provider_config">配置</string>
+    <string name="search_provider_get_api_key">点击获取密钥</string>
     <string name="search_provider_test">测试</string>
     <string name="search_provider_test_query_hint">输入测试搜索词</string>
     <string name="search_provider_test_run">运行</string>

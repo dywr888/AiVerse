@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,6 +51,7 @@ import com.aiverse.R
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ChevronDown
 import compose.icons.feathericons.ChevronUp
+import compose.icons.feathericons.X
 
 /**
  * 上下文用量明细面板（可折叠，内嵌在输入框上方、占满横向）：
@@ -62,6 +64,8 @@ internal fun ContextUsageDetailCard(
     detail: ContextUsageDetail,
     /** 立即压缩当前会话上下文。 */
     onCompact: () -> Unit,
+    /** 关闭上下文用量面板（右侧关闭按钮）。 */
+    onClose: () -> Unit,
     /** 自动压缩触发阈值（上下文窗口百分比），进度条上在此位置画界限标记。 */
     thresholdPercent: Int = 85,
     modifier: Modifier = Modifier
@@ -88,7 +92,7 @@ internal fun ContextUsageDetailCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { collapsed = false }
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 LinearProgressIndicator(
@@ -108,7 +112,7 @@ internal fun ContextUsageDetailCard(
                 )
             }
         } else {
-            Column(modifier = Modifier.padding(Spacing.md)) {
+            Column(modifier = Modifier.padding(Spacing.sm)) {
                 // 已用 tokens / 上下文上限（当前模型）/ 占用比例 + 倒三角折叠
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -139,18 +143,29 @@ internal fun ContextUsageDetailCard(
                     Spacer(Modifier.width(Spacing.xs))
                     IconButton(
                         onClick = { collapsed = true },
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             FeatherIcons.ChevronUp,
                             contentDescription = stringResource(R.string.common_collapse),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            FeatherIcons.X,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
-                Spacer(Modifier.height(Spacing.sm))
+                Spacer(Modifier.height(Spacing.xs))
 
                 // 进度条 + 阈值界限标记（如 85% 处竖线，提示到达自动压缩线，非强制）
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -172,7 +187,7 @@ internal fun ContextUsageDetailCard(
                     )
                 }
 
-                Spacer(Modifier.height(Spacing.xs))
+                Spacer(Modifier.height(2.dp))
 
                 // 自动压缩说明 + 立即压缩
                 Row(
@@ -190,16 +205,15 @@ internal fun ContextUsageDetailCard(
                         enabled = detail.usedTokens > 0,
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary
-                        )
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.chat_context_compact_now),
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelSmall
                         )
                     }
                 }
-
-                Spacer(Modifier.height(Spacing.sm))
 
                 // 分类明细
                 DetailRow(stringResource(R.string.chat_context_file_tokens), detail.fileTokens, detail.usedTokens, MaterialTheme.colorScheme.primary)
@@ -218,7 +232,7 @@ private fun DetailRow(label: String, value: Int, total: Int, color: androidx.com
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

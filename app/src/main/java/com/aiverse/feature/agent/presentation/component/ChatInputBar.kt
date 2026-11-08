@@ -57,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -521,6 +522,7 @@ internal fun ChatInputBar(
                     ContextUsageDetailCard(
                         detail = contextUsageDetail,
                         onCompact = onCompactContext,
+                        onClose = { usagePanelExpanded = false },
                         thresholdPercent = compactionThresholdPercent,
                         modifier = Modifier.padding(bottom = Spacing.sm)
                     )
@@ -574,6 +576,7 @@ internal fun ChatInputBar(
                         value = inputFieldValue,
                         onValueChange = { new ->
                             inputFieldValue = new
+                            usagePanelExpanded = false
                             onValueChange(new.text)
                         },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -582,6 +585,7 @@ internal fun ChatInputBar(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = INPUT_FIELD_MIN_HEIGHT, max = INPUT_FIELD_MAX_HEIGHT)
+                            .onFocusChanged { if (it.isFocused) usagePanelExpanded = false }
                             .onSizeChanged { inputFieldWidthPx = it.width },
                         placeholder = {
                             Text(
@@ -760,7 +764,6 @@ internal fun ChatInputBar(
                                     ContextUsageRing(
                                         progress = tokenProgress.coerceIn(0f, 1f),
                                         tokenEstimated = tokenEstimated,
-                                        expanded = usagePanelExpanded,
                                         onToggle = { if (contextUsageDetail != null) usagePanelExpanded = !usagePanelExpanded }
                                     )
                                 })
@@ -1124,19 +1127,14 @@ internal fun SendButton(
 private fun ContextUsageRing(
     progress: Float,
     tokenEstimated: Boolean,
-    expanded: Boolean,
     onToggle: () -> Unit
 ) {
     val ringColor = contextRingColor(progress)
     val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-    val usageLabel = if (expanded) {
-        stringResource(R.string.chat_context_close)
-    } else {
-        stringResource(
-            if (tokenEstimated) R.string.chat_context_usage_estimated else R.string.chat_context_usage,
-            (progress * 100).toInt()
-        )
-    }
+    val usageLabel = stringResource(
+        if (tokenEstimated) R.string.chat_context_usage_estimated else R.string.chat_context_usage,
+        (progress * 100).toInt()
+    )
     Box(
         modifier = Modifier
             .size(36.dp)
@@ -1171,25 +1169,17 @@ private fun ContextUsageRing(
                 )
             }
         }
-        if (expanded) {
-            Icon(
-                FeatherIcons.X,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        } else {
-            Text(
-                text = "${(progress * 100).toInt()}%",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = if (progress <= 0f) MaterialTheme.colorScheme.onSurfaceVariant else ringColor,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
+        // 圆环始终显示占用百分比；面板关闭按钮已移至明细卡右侧，圆环不再变叉。
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = if (progress <= 0f) MaterialTheme.colorScheme.onSurfaceVariant else ringColor,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 

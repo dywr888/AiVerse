@@ -2407,6 +2407,10 @@ class AIAgentViewModel @Inject constructor(
                     }
                     is AgentEvent.ContextUsage -> {
                         _contextUsages.value = _contextUsages.value + (sessionId to event)
+                        // 持久化最近一次上下文用量（含发送前预测与压缩后重算），重启直接读真实值而非快照估算。
+                        if (event.inputTokens > 0) {
+                            runCatching { chatSessionDao.updateLastInputTokens(sessionId, event.inputTokens) }
+                        }
                     }
                     is AgentEvent.CompactionFailed -> {
                         setCompacting(sessionId, false)

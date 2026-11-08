@@ -291,17 +291,34 @@ class OverlayBallService : Service() {
 
         root.addView(content)
 
-        // 定位：优先放球右侧，放不下放左侧；垂直对齐球顶并夹在屏内
+        // 定位：优先放球右侧，其次左侧；两侧都不够时放球上方或下方（避开球），确保球保留可见。
         val screenW = resources.displayMetrics.widthPixels
         val screenH = resources.displayMetrics.heightPixels
         val gap = dp(12)
-        val x = if (ballP.x + ballP.width + panelSize + gap <= screenW) {
-            ballP.x + ballP.width + gap
-        } else {
-            (ballP.x - panelSize - gap).coerceAtLeast(dp(8))
+        val rightX = ballP.x + ballP.width + gap
+        val leftX = ballP.x - panelSize - gap
+        var overlapsBall = false
+        val (px, py) = when {
+            rightX + panelSize <= screenW -> rightX to ballP.y
+            leftX >= dp(8) -> leftX to ballP.y
+            else -> {
+                val cx = (ballP.x - (panelSize - ballP.width) / 2)
+                    .coerceIn(dp(8), (screenW - panelSize - dp(8)).coerceAtLeast(dp(8)))
+                val aboveY = ballP.y - panelSize - gap
+                val belowY = ballP.y + ballP.height + gap
+                when {
+                    aboveY >= dp(8) -> cx to aboveY
+                    belowY + panelSize <= screenH - dp(8) -> cx to belowY
+                    else -> {
+                        overlapsBall = true
+                        cx to ballP.y
+                    }
+                }
+            }
         }
         val yMax = (screenH - panelSize - dp(8)).coerceAtLeast(dp(8))
-        val y = ballP.y.coerceIn(dp(8), yMax)
+        val fx = px.coerceIn(dp(8), (screenW - panelSize - dp(8)).coerceAtLeast(dp(8)))
+        val fy = py.coerceIn(dp(8), yMax)
 
         val params = WindowManager.LayoutParams(
             panelSize,
@@ -312,11 +329,21 @@ class OverlayBallService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            this.x = x
-            this.y = y
+            this.x = fx
+            this.y = fy
         }
         runCatching { wm.addView(root, params) }
-            .onSuccess { panelView = root }
+            .onSuccess {
+                panelView = root
+                // 极端小屏下面板必须与球重叠时，把球提到面板上层，确保球始终可见。
+                if (overlapsBall) {
+                    ballView?.let { v ->
+                        val p = ballParams ?: return@let
+                        runCatching { wm.removeView(v) }
+                        runCatching { wm.addView(v, p) }
+                    }
+                }
+            }
             .onFailure { /* 添加失败不致命：球仍在，可再次长按 */ }
     }
 

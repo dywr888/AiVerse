@@ -2,6 +2,7 @@ package com.aiverse.feature.agent.presentation.component
 
 import com.aiverse.feature.agent.presentation.AgentUIMessage
 import com.aiverse.feature.agent.presentation.MessageRole
+import com.aiverse.feature.settings.domain.model.ModelContextPolicy
 
 /**
  * 上下文用量的分类明细：把总 token 按「文件/图片、MCP/工具、思考」三类归一化拆分。
@@ -46,8 +47,11 @@ object ContextUsageEstimator {
     /** 每次工具结果的粗估。 */
     private const val TOOL_RESULT_TOKENS = 500
 
-    /** 思考文本：约 4 字符 / token。 */
-    private const val CHARS_PER_TOKEN = 4
+    /**
+     * 系统提示 / 工具定义 / 上下文基线占用的估算 token：无真实事件（启动/回放历史）时叠加到消息估算，
+     * 避免把估算值低估到严重偏离真实。取上下文窗口保留基线量级。
+     */
+    private const val SYSTEM_PROMPT_BASE_TOKENS = 2000
 
     /**
      * 「文件 / 命令」类工具：算作文件占用。其余工具（含 websearch、mcp_*、browser 等）算 MCP。
@@ -59,6 +63,9 @@ object ContextUsageEstimator {
         "loadSkill", "askUserQuestion", "manageMcp", "planMode", "goalStatus", "todo", "memory",
         "task", "browser", "review"
     )
+
+    /** 文本 token 估算：ASCII 按 4 字符/token、非 ASCII（中文/东亚）按 1 字符/token，贴合真实。 */
+    private fun textTokens(text: String): Int = ModelContextPolicy.estimateTextTokens(text)
 
     fun estimate(
         messages: List<AgentUIMessage>,
@@ -85,7 +92,7 @@ object ContextUsageEstimator {
                     if (m.toolName in FILE_TOOLS) rawFile += TOOL_RESULT_TOKENS else rawMcp += TOOL_RESULT_TOKENS
                 }
                 MessageRole.ASSISTANT -> {
-                    rawThinking += (m.reasoning?.length ?: 0) / CHARS_PER_TOKEN
+                    rawThinking += textTokens(m.reasoning.orEmpty())
                 }
             }
         }
@@ -95,9 +102,9 @@ object ContextUsageEstimator {
         val effectiveUsed = if (usedTokens > 0) usedTokens else estimateTotal(messages)
         val (file, mcp, thinking) = if (sum > 0 && effectiveUsed > 0) {
             Triple(
-                effectiveUsed * rawFile / sum,
-                effectiveUsed * rawMcp / sum,
-                effectiveUsed * rawThinking / sum
+                (effectiveUsed.toLong() * rawFile / sum).toInt(),
+                (effectiveUsed.toLong() * rawMcp / sum).toInt(),
+                (effectiveUsed.toLong() * rawThinking / sum).toInt()
             )
         } else {
             Triple(0, 0, 0)
@@ -114,13 +121,16 @@ object ContextUsageEstimator {
         )
     }
 
-    /** 从消息快照估算总输入 token（文本 + 附件 + 工具 + 思考），用于无真实用量的兜底。 */
+    /**
+     * 从消息快照估算总输入 token（文本 + 附件 + 工具 + 思考 + 系统提示基线），用于无真实用量的兜底。
+     * 文本用 [textTokens]（ASCII 4 字符/token、中文等按 1 字符/token），修正中文/东亚文本低估。
+     */
     fun estimateTotal(messages: List<AgentUIMessage>): Int {
-        var total = 0
+        var total = SYSTEM_PROMPT_BASE_TOKENS
         for (m in messages) {
             when (m.role) {
                 MessageRole.USER -> {
-                    total += m.content.length / CHARS_PER_TOKEN
+                    total += textTokens(m.content)
                     for (a in m.attachments) {
                         total += if (a.isImage) IMAGE_TOKENS
                         else (a.sizeBytes / 4).toInt().coerceIn(FILE_TOKEN_MIN, FILE_TOKEN_MAX)
@@ -128,8 +138,8 @@ object ContextUsageEstimator {
                 }
                 MessageRole.TOOL -> total += TOOL_RESULT_TOKENS
                 MessageRole.ASSISTANT -> {
-                    total += m.content.length / CHARS_PER_TOKEN
-                    total += (m.reasoning?.length ?: 0) / CHARS_PER_TOKEN
+                    total += textTokens(m.content)
+                    total += textTokens(m.reasoning.orEmpty())
                 }
             }
         }

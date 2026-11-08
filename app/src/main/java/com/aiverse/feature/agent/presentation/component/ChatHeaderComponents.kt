@@ -121,8 +121,7 @@ internal fun ChatHeader(
                 .fillMaxWidth()
                 .statusBarsPadding()
         ) {
-            // 折叠状态：默认收起（3 按钮可见 + 右侧 >）；展开时最左出现 <；点最左 < 收起 3 按钮。
-            var panelOpen by remember { mutableStateOf(false) }
+            // 折叠状态：单一切换按钮。三个按钮显示时箭头向左 <（点击收起），隐藏时箭头向右 >（点击展开）。
             var buttonsVisible by remember { mutableStateOf(true) }
             var showRenameDialog by remember { mutableStateOf(false) }
             var showModelSheet by remember { mutableStateOf(false) }
@@ -132,17 +131,6 @@ internal fun ChatHeader(
                     .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 展开形态：最左侧折叠按钮，点击收起顶部 3 个按钮。
-                if (panelOpen) {
-                    HeaderFoldButton(
-                        icon = FeatherIcons.ChevronLeft,
-                        contentDescription = stringResource(R.string.chat_header_collapse),
-                        onClick = {
-                            panelOpen = false
-                            buttonsVisible = false
-                        }
-                    )
-                }
                 // 大屏常驻侧栏时隐掉汉堡键：侧栏已经摆在左边，再给个开关反而困惑。
                 if (showMenuButton) {
                     IconButton(
@@ -249,16 +237,13 @@ internal fun ChatHeader(
                     // 思考强度入口（右上角）
                     reasoningEntrance()
                 }
-                // 最右侧折叠按钮：收起形态显示 >，点击展开（并显示最左 <）。
+                // 最右侧单一切换折叠按钮：三个按钮显示时箭头向左 <（点击收起），隐藏时箭头向右 >（点击展开）。
                 HeaderFoldButton(
-                    icon = if (panelOpen) FeatherIcons.ChevronLeft else FeatherIcons.ChevronRight,
+                    icon = if (buttonsVisible) FeatherIcons.ChevronLeft else FeatherIcons.ChevronRight,
                     contentDescription = stringResource(
-                        if (panelOpen) R.string.chat_header_collapse else R.string.chat_header_expand
+                        if (buttonsVisible) R.string.chat_header_collapse else R.string.chat_header_expand
                     ),
-                    onClick = {
-                        panelOpen = !panelOpen
-                        if (panelOpen) buttonsVisible = true
-                    }
+                    onClick = { buttonsVisible = !buttonsVisible }
                 )
             }
             // 远程模式：左边 SSH 连接状态，右边 token 累计统计

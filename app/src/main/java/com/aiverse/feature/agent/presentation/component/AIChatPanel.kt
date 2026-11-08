@@ -922,16 +922,18 @@ fun AIChatPanel(
     val activeModel = activeProvider?.effectiveModel.orEmpty()
     val activeModelMetadata = activeProvider?.let { modelMetadata[modelMetadataKey(it.id, activeModel)] }
     // 上下文用量明细：点击快捷栏圆环弹出；分类按当前会话消息快照估算。
-    val contextUsageDetail = remember(currentSessionId, contextUsages, messages, sessionInputTokens) {
+    val contextUsageDetail = remember(currentSessionId, contextUsages, messages, sessionInputTokens, sessionLastInputTokens) {
         val contextLimit = activeModelMetadata?.let {
             com.aiverse.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
         } ?: 0
         val usage = contextUsages[currentSessionId]
-        // 只用最近一次真实 ContextUsage 事件；无事件（新会话/启动回放）时为 0，
-        // 避免用会话累计输入 tokens 或消息快照估算导致启动即显示高占用。
-        val used = usage?.inputTokens?.takeIf { it > 0 } ?: 0
-        val estimated = usage?.estimated ?: (sessionInputTokens <= 0 && currentSessionId != null)
-        if (contextLimit > 0 && currentSessionId != null && used > 0) {
+        // 有真实 ContextUsage 事件用事件值；无事件时用会话 DB 记录的真实 lastInputTokens
+        //（重开/回放历史是准确值）；仅真实值也为 0（新会话/发送前）且消息非空才退回消息快照估算。
+        val used = usage?.inputTokens?.takeIf { it > 0 }
+            ?: sessionLastInputTokens.takeIf { it > 0 }
+            ?: 0
+        val estimated = usage?.estimated ?: (currentSessionId != null && used == 0)
+        if (contextLimit > 0 && currentSessionId != null && (used > 0 || messages.isNotEmpty())) {
             ContextUsageEstimator.estimate(messages, used, contextLimit, estimated)
         } else null
     }
@@ -1578,6 +1580,8 @@ fun AIChatPanel(
                     contentSlice = item.slice,
                     isChunkHeader = item.isChunkHeader,
                     isChunkFooter = item.isChunkFooter,
+                    // 该消息仍在生成中（AI 思考/流式）：隐藏朗读按钮，回答完毕才显示。
+                    messageInProgress = isBusy && message.id == messages.lastOrNull()?.id,
                     reasoningVisible = item.reasoningVisible,
                     contentPadding = if (item.groupMember) ToolGroupMemberPadding else PaddingValues(0.dp),
                     onRewindClick = { viewModel.openRewindMenu(it) },
@@ -1917,16 +1921,23 @@ fun AIChatPanel(
                         settingsViewModel?.refreshProviderDashboard(it, context = context, force = true)
                     }
                 },
-                tokenEstimated = contextUsages[currentSessionId]?.estimated ?: (sessionInputTokens <= 0 && currentSessionId != null),
+                tokenEstimated = contextUsages[currentSessionId]?.estimated
+                    ?: (currentSessionId != null &&
+                        (contextUsages[currentSessionId]?.inputTokens?.takeIf { it > 0 }
+                            ?: sessionLastInputTokens.takeIf { it > 0 } ?: 0) == 0),
                 tokenProgress = run {
                     val contextLimit = activeModelMetadata?.let {
                         com.aiverse.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
                     } ?: 0
-                    // 上下文用量：只用最近一次真实 ContextUsage 事件（流式预测/实际，随每轮更新）。
-                    // 无事件（启动/新会话/回放历史）时显示空态 0，避免用会话累计输入 tokens
-                    // 或消息快照估算兜底，导致启动即显示 100%。
-                    val usedTokens = contextUsages[currentSessionId]?.inputTokens?.takeIf { it > 0 } ?: 0
-                    if (contextLimit > 0) (usedTokens.toFloat() / contextLimit).coerceIn(0f, 1f) else 0f
+                    // 上下文用量：优先用最近一次真实 ContextUsage 事件（流式预测/实际，随每轮更新）；
+                    // 无事件时用会话 DB 记录的真实 lastInputTokens（重开/回放历史准确值）；
+                    // 仅真实值也为 0（新会话/发送前）且消息非空时才退回消息快照估算（estimateTotal）。
+                    val usedTokens = contextUsages[currentSessionId]?.inputTokens?.takeIf { it > 0 }
+                        ?: sessionLastInputTokens.takeIf { it > 0 }
+                        ?: 0
+                    val effectiveUsed = if (usedTokens > 0) usedTokens
+                    else if (messages.isNotEmpty()) ContextUsageEstimator.estimateTotal(messages) else 0
+                    if (contextLimit > 0) (effectiveUsed.toFloat() / contextLimit).coerceIn(0f, 1f) else 0f
                 },
                 isScrolling = listState.isScrollInProgress,
                 forceOpenModelSheet = onboardingStep == OnboardingStep.SIMULATE_CHOOSE_MODEL,

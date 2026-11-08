@@ -245,6 +245,8 @@ internal fun AgentMessageItem(
     reasoningDurationMs: Long? = null,
     /** 是否为分块的末块（渲染操作行、底部圆角、与下一条列表 item 的间距）；非分块消息恒为 true。 */
     isChunkFooter: Boolean = true,
+    /** 该消息仍在生成中（AI 思考/流式输出尚未完成）：隐藏朗读按钮，回答完毕才显示。 */
+    messageInProgress: Boolean = false,
 ) {
     if (message.isCompactionMarker) {
         // 压缩内部锚点不再渲染分隔线：摘要卡片已提供压缩反馈，避免与卡片重复。
@@ -467,7 +469,7 @@ internal fun AgentMessageItem(
                 val durationText = taskDurationMs?.let { formatTaskDuration(it) }
                 val hasMeta = isUser || tokenStats != null || cacheHitRate != null || durationText != null
                 val actionsVisible = isUser || showActions
-                val canSpeak = !isUser && ttsController != null && hasContent && isChunkFooter
+                val canSpeak = !isUser && ttsController != null && hasContent && isChunkFooter && !messageInProgress
                 if ((hasContent || hasAttachments) && message.role != MessageRole.TOOL && isChunkFooter &&
                     (actionsVisible || hasMeta || canSpeak)
                 ) {

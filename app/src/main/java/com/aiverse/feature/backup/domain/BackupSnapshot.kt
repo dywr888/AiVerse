@@ -226,7 +226,9 @@ data class ChatSessionDto(
     val isPinned: Boolean = false,
     /** 子代理会话的父会话 id；丢了它恢复后子会话会变成一堆根会话。 */
     val parentId: String? = null,
-    val subagentType: String? = null
+    val subagentType: String? = null,
+    /** 会话最近一次真实上下文用量（inputTokens），随备份导出/恢复。 */
+    val lastInputTokens: Int = 0
 )
 
 @Serializable

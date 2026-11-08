@@ -13,7 +13,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,17 +25,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aiverse.R
 import com.aiverse.core.ui.AppTextField
 import com.aiverse.core.ui.SwipeToDeleteRow
 import com.aiverse.feature.search.domain.SearchServiceOptions
 import com.aiverse.feature.search.presentation.SearchProviderViewModel
-import com.aiverse.R
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
- * 搜索提供商管理页：服务列表（拖拽排序 / 左滑删除 / 单选当前）+ 结果数量 + 右上角加号弹窗。
- * 模仿 RikkaHub 的搜索服务管理页，去掉 RikkaHub 自带搜索。
+ * 搜索提供商管理页：服务列表（名字靠左 / 拖拽排序 / 左滑删除 / 已选整条高亮）+ 结果数量 +
+ * 右上角加号弹窗。模仿 RikkaHub 的搜索服务管理页，去掉 RikkaHub 自带搜索。
  */
 @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 @Composable
@@ -69,12 +68,14 @@ fun SearchProviderSection(
                     SwipeToDeleteRow(
                         onDelete = { viewModel.removeService(service.id) },
                         deleteEnabled = services.size > 1,
-                        onClick = { onEdit(service.id) },
+                        onClick = {
+                            viewModel.selectService(index)
+                            onEdit(service.id)
+                        },
                         content = {
                             SearchProviderCard(
                                 service = service,
                                 selected = index == state.selected,
-                                onSelect = { viewModel.selectService(index) },
                                 dragging = isDragging
                             )
                         }
@@ -105,35 +106,47 @@ fun SearchProviderSection(
 private fun SearchProviderCard(
     service: SearchServiceOptions,
     selected: Boolean,
-    onSelect: () -> Unit,
     dragging: Boolean,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            }
         ),
         elevation = if (dragging) CardDefaults.cardElevation(defaultElevation = 6.dp) else CardDefaults.cardElevation()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(selected = selected, onClick = onSelect)
-            Column(Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = service.displayName,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
                 Text(
                     text = stringResource(R.string.search_provider_search_ability_search),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
         }

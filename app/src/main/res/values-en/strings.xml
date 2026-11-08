@@ -179,6 +179,8 @@
     <string name="search_provider_result_size_desc">Number of results per search (1-20)</string>
     <string name="search_provider_save">Save</string>
     <string name="search_provider_cancel">Cancel</string>
+    <string name="search_provider_config">Configuration</string>
+    <string name="search_provider_get_api_key">Get API key</string>
     <string name="search_provider_test">Test</string>
     <string name="search_provider_test_query_hint">Enter a test query</string>
     <string name="search_provider_test_run">Run</string>

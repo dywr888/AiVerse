@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import compose.icons.FeatherIcons
-import compose.icons.feathericons.ExternalLink
+import compose.icons.feathericons.HelpCircle
 import com.aiverse.R
 import com.aiverse.core.ui.AppSwitch
 import com.aiverse.feature.plugins.data.InstalledPlugin
@@ -125,7 +125,7 @@ fun PluginListSection(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = FeatherIcons.ExternalLink,
+                            imageVector = FeatherIcons.HelpCircle,
                             contentDescription = stringResource(R.string.plugins_scripts_docs),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
