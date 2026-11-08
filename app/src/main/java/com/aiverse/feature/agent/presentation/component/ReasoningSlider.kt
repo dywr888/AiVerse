@@ -1,8 +1,8 @@
 package com.aiverse.feature.agent.presentation.component
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,25 +17,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiverse.core.theme.Spacing
 
 /**
- * 思考强度滑块（普通样式，无特效）。
+ * 思考强度分段单选按钮（segmented control）。
  *
- * 选中区域蓝色填充，未选白色；档位圆点选中蓝、未选白；无粒子动画、无渐变。
- * 左右拉动选档，松手吸附到最近档位并回调 [onChange]。
+ * 7 档（不思考/自动/低/中/高/极高/最高）等宽分段，选中段主色胶囊高亮，档位名即刻度，
+ * 无滑动圆点。点击或横向拖动立即跳到手指所在档位（不连续滑动），松手回调 [onChange]。
  */
 @Composable
 internal fun ReasoningSlider(
@@ -49,93 +47,74 @@ internal fun ReasoningSlider(
 ) {
     if (levels.isEmpty()) return
     val n = levels.size
-    var thumbIndex by remember { mutableStateOf(currentIndex.coerceIn(0, n - 1)) }
+    var selectedIndex by remember { mutableStateOf(currentIndex.coerceIn(0, n - 1)) }
     LaunchedEffect(currentIndex) {
-        thumbIndex = currentIndex.coerceIn(0, n - 1)
+        selectedIndex = currentIndex.coerceIn(0, n - 1)
     }
-    val trackRadius = 22.dp
     val selectedColor = MaterialTheme.colorScheme.primary
-    val unselectedColor = Color.White.copy(alpha = 0.2f)
+    val selectedTextColor = MaterialTheme.colorScheme.onPrimary
+    val unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(44.dp)
-            .clip(RoundedCornerShape(trackRadius))
-            .background(Color.White.copy(alpha = 0.08f))
-            .onSizeChanged { }
+            .alpha(if (enabled) 1f else 0.5f)
+            .clip(RoundedCornerShape(20.dp))
+            .background(containerColor)
+            .padding(4.dp)
             .pointerInput(n, enabled) {
                 if (!enabled) return@pointerInput
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        thumbIndex = offsetToIndex(offset.x, size.width.toFloat(), n)
-                    },
-                    onDrag = { change, _ ->
-                        thumbIndex = offsetToIndex(change.position.x, size.width.toFloat(), n)
-                    },
-                    onDragEnd = { onChange(thumbIndex) },
-                    onDragCancel = { onChange(thumbIndex) }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var index = offsetToIndex(down.position.x, size.width.toFloat(), n)
+                    // 按下即跳到对应档位（直接跳档，无滑动圆点）
+                    selectedIndex = index
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            onChange(index)
+                            break
+                        }
+                        if (change.isConsumed) {
+                            onChange(index)
+                            break
+                        }
+                        val newIndex = offsetToIndex(change.position.x, size.width.toFloat(), n)
+                        if (newIndex != index) {
+                            index = newIndex
+                            selectedIndex = index
+                        }
+                        change.consume()
+                    }
+                }
             }
     ) {
-        Canvas(Modifier.fillMaxWidth().height(44.dp)) {
-            val w = size.width
-            val h = size.height
-            val ratio = if (n <= 1) 0f else thumbIndex.toFloat() / (n - 1)
-            val fillW = w * ratio
-
-            // 选中区域蓝色填充
-            if (fillW > 0f) {
-                drawRoundRect(
-                    color = selectedColor,
-                    topLeft = Offset(0f, 0f),
-                    size = Size(fillW, h),
-                    cornerRadius = CornerRadius(h / 2f)
-                )
+        Row(Modifier.fillMaxWidth()) {
+            levels.forEachIndexed { i, label ->
+                val active = i == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) selectedColor else Color.Transparent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                        color = if (active) selectedTextColor else unselectedTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        softWrap = false
+                    )
+                }
             }
-
-            // 档位圆点：选中蓝、未选白
-            for (i in 0 until n) {
-                val x = w * (if (n <= 1) 0.5f else i.toFloat() / (n - 1))
-                val reached = i <= thumbIndex
-                drawCircle(
-                    color = if (reached) Color.White else unselectedColor,
-                    radius = if (reached) 4f else 3f,
-                    center = Offset(x, h / 2f)
-                )
-            }
-
-            // 滑块（白色圆）
-            drawCircle(
-                color = Color.White,
-                radius = 15f,
-                center = Offset(w * ratio, h / 2f)
-            )
-        }
-    }
-
-    // 档位名称行
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = Spacing.xs, bottom = Spacing.sm),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-    ) {
-        levels.forEachIndexed { i, label ->
-            val active = i == thumbIndex
-            Text(
-                text = label,
-                fontSize = 12.sp,
-                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                color = if (active) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
         }
     }
 }

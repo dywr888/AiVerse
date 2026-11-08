@@ -29,11 +29,17 @@ private val Context.toolSafetyDataStore by preferencesDataStore(
 class ToolSafetySettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
-    private companion object {
+    companion object {
         val DISABLED_KEY = booleanPreferencesKey("disable_safety_interception")
         val GLOBAL_ALLOW_KEY = booleanPreferencesKey("global_auto_approve")
         val OVERLAY_BALL_KEY = booleanPreferencesKey("overlay_ball_enabled")
         val OVERLAY_BALL_SIZE_KEY = intPreferencesKey("overlay_ball_size")
+        val OVERLAY_BALL_ALPHA_KEY = intPreferencesKey("overlay_ball_alpha")
+
+        /** 悬浮球不透明度默认值（%，完全不透明）。 */
+        const val DEFAULT_ALPHA_PERCENT = 100
+        const val MIN_ALPHA_PERCENT = 30
+        const val MAX_ALPHA_PERCENT = 100
     }
 
     /** 当前开关流；未设置时回退到 false（默认保留安全拦截）。 */
@@ -72,5 +78,15 @@ class ToolSafetySettingsRepository @Inject constructor(
 
     suspend fun setOverlayBallSize(size: Int) {
         context.toolSafetyDataStore.edit { it[OVERLAY_BALL_SIZE_KEY] = size.coerceIn(32, 80) }
+    }
+
+    /** 悬浮球不透明度（%，100=完全不透明）流；未设置时回退到 100（默认）。 */
+    val overlayBallAlphaFlow: Flow<Int> =
+        context.toolSafetyDataStore.data.map { it[OVERLAY_BALL_ALPHA_KEY] ?: DEFAULT_ALPHA_PERCENT }
+
+    suspend fun setOverlayBallAlpha(alphaPercent: Int) {
+        context.toolSafetyDataStore.edit {
+            it[OVERLAY_BALL_ALPHA_KEY] = alphaPercent.coerceIn(MIN_ALPHA_PERCENT, MAX_ALPHA_PERCENT)
+        }
     }
 }

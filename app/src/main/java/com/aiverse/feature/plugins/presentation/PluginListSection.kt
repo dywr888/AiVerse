@@ -1,5 +1,7 @@
 package com.aiverse.feature.plugins.presentation
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -30,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -45,11 +48,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import compose.icons.FeatherIcons
+import compose.icons.feathericons.ExternalLink
 import com.aiverse.R
 import com.aiverse.core.ui.AppSwitch
 import com.aiverse.feature.plugins.data.InstalledPlugin
@@ -59,6 +65,9 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/** 脚本插件使用文档链接（安装脚本正上方图标跳转）。 */
+private const val SCRIPTS_DOCS_URL = "https://aiverse.qlyyz.xyz/guide/scripts"
 
 /** 脚本插件管理页：列表（启用/禁用/卸载）+ 安装入口（仓库页/本地 zip）。 */
 @Composable
@@ -106,57 +115,74 @@ fun PluginListSection(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.weight(1f))
-                Box {
-                    Button(
-                        onClick = { showInstallMenu = true },
-                        enabled = !installing
+                // 安装脚本正上方：跳转脚本插件使用文档的入口图标。
+                Column(horizontalAlignment = Alignment.End) {
+                    val context = LocalContext.current
+                    IconButton(
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SCRIPTS_DOCS_URL)))
+                        },
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
+                            imageVector = FeatherIcons.ExternalLink,
+                            contentDescription = stringResource(R.string.plugins_scripts_docs),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
-                        if (installing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(stringResource(R.string.plugins_install))
                     }
-                    DropdownMenu(
-                        expanded = showInstallMenu,
-                        onDismissRequest = { showInstallMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.plugins_install_from_repo)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Storefront,
-                                    contentDescription = null
+                    Box {
+                        Button(
+                            onClick = { showInstallMenu = true },
+                            enabled = !installing
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            if (installing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
-                            },
-                            onClick = {
-                                showInstallMenu = false
-                                onOpenRepo()
+                                Spacer(Modifier.width(8.dp))
                             }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.plugins_install_from_local)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Folder,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                showInstallMenu = false
-                                zipPicker.launch("application/zip")
-                            }
-                        )
+                            Text(stringResource(R.string.plugins_install))
+                        }
+                        DropdownMenu(
+                            expanded = showInstallMenu,
+                            onDismissRequest = { showInstallMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.plugins_install_from_repo)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Storefront,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showInstallMenu = false
+                                    onOpenRepo()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.plugins_install_from_local)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Folder,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showInstallMenu = false
+                                    zipPicker.launch("application/zip")
+                                }
+                            )
+                        }
                     }
                 }
             }

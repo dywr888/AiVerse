@@ -191,7 +191,9 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Appearance(R.string.settings_appearance),
     Plugins(R.string.settings_plugins),
     Tts(R.string.settings_tts),
-    PluginRepo(R.string.plugins_repo_title)
+    PluginRepo(R.string.plugins_repo_title),
+    SearchProvider(R.string.settings_search_provider),
+    SearchProviderDetail(R.string.settings_search_provider)
 }
 
 /**
@@ -213,11 +215,13 @@ private fun SettingsSection.depth(): Int = when (this) {
     SettingsSection.SubAgentDetail,
     SettingsSection.ContainerDownloads,
     SettingsSection.Log,
-    SettingsSection.PluginRepo -> 2
+    SettingsSection.PluginRepo,
+    SettingsSection.SearchProvider -> 2
+    SettingsSection.SearchProviderDetail -> 3
     else -> 1
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, kotlin.uuid.ExperimentalUuidApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -350,6 +354,8 @@ fun SettingsScreen(
         listSelections.getOrPut(target) { ListSelectionState() }
     var editingProvider by remember { mutableStateOf<AIProviderConfig?>(null) }
     var showAddProviderSheet by remember { mutableStateOf(false) }
+    var showAddSearchProviderSheet by remember { mutableStateOf(false) }
+    var selectedSearchServiceId by remember { mutableStateOf<kotlin.uuid.Uuid?>(null) }
     var providerPresetPrefill by remember { mutableStateOf<ProviderPreset?>(null) }
     var showMcpDialog by remember { mutableStateOf(false) }
     var editingMcp by remember { mutableStateOf<McpServerEntry?>(null) }
@@ -472,6 +478,7 @@ fun SettingsScreen(
         SettingsSection.SubAgentEditor -> subAgentEditorReturn
         SettingsSection.ContainerDownloads -> SettingsSection.Container
         SettingsSection.PluginRepo -> SettingsSection.Plugins
+        SettingsSection.SearchProviderDetail -> SettingsSection.SearchProvider
         else -> if (expanded) null else SettingsSection.Menu
     }
 
@@ -749,6 +756,16 @@ fun SettingsScreen(
                                 modifier = Modifier.onboardingTarget(OnboardingStep.PROVIDER_ADD)
                             ) {
                                 Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.settings_add_provider))
+                            }
+                        }
+                        SettingsSection.SearchProvider -> {
+                            IconButton(onClick = { showAddSearchProviderSheet = true }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.search_provider_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                         }
                         SettingsSection.Mcp -> {
@@ -1305,6 +1322,27 @@ fun SettingsScreen(
                         androidx.hilt.navigation.compose.hiltViewModel()
                     PluginRepoSection(
                         viewModel = pluginsViewModel
+                    )
+                }
+                SettingsSection.SearchProvider -> {
+                    val searchVm: com.aiverse.feature.search.presentation.SearchProviderViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    SearchProviderSection(
+                        viewModel = searchVm,
+                        onEdit = { id ->
+                            selectedSearchServiceId = id
+                            section = SettingsSection.SearchProviderDetail
+                        },
+                        showAddSheet = showAddSearchProviderSheet,
+                        onDismissAddSheet = { showAddSearchProviderSheet = false }
+                    )
+                }
+                SettingsSection.SearchProviderDetail -> {
+                    val searchVm: com.aiverse.feature.search.presentation.SearchProviderViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    SearchProviderDetailSection(
+                        viewModel = searchVm,
+                        serviceId = selectedSearchServiceId
                     )
                 }
                 SettingsSection.Tts -> {
@@ -1898,6 +1936,12 @@ internal fun SettingsMenu(
                 icon = FeatherIcons.Wifi,
                 title = stringResource(SettingsSection.WebServer.titleRes),
                 onClick = { onOpen(SettingsSection.WebServer) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Globe,
+                title = stringResource(SettingsSection.SearchProvider.titleRes),
+                onClick = { onOpen(SettingsSection.SearchProvider) }
             )
         }
 
