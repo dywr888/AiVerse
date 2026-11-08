@@ -67,6 +67,7 @@ import com.aiverse.core.theme.ChatBubbleStyle
 import com.aiverse.core.theme.LocalChatBubbleStyle
 import com.aiverse.core.theme.LocalChatFontSizeSp
 import com.aiverse.core.tts.LocalTtsController
+import com.aiverse.core.tts.ReadProgress
 import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ContentWidth
 import com.aiverse.core.ui.ExpandableChevronIcon
@@ -287,6 +288,7 @@ internal fun AgentMessageItem(
     val speakingId by (ttsController?.currentMessageId ?: MutableStateFlow<String?>(null)).collectAsState()
     val ttsPlaying by (ttsController?.isPlaying ?: MutableStateFlow(false)).collectAsState()
     val isThisSpeaking = speakingId == message.id && ttsPlaying
+    val readProgressState by (ttsController?.readProgress ?: MutableStateFlow<ReadProgress?>(null)).collectAsState()
 
     // 工具卡片入场：只对本次浏览期间新追加进来的消息播（entryDelayMs 非空），
     // 历史、切页返回、item 回收重挂载都直接显示（谁该入场由 MessageEntryScheduler 定）。
@@ -428,12 +430,15 @@ internal fun AgentMessageItem(
                                             .then(
                                                 if (isThisSpeaking) Modifier
                                                     .clip(RoundedCornerShape(12.dp))
-                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                                                     .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
                                                 else Modifier
                                             ),
                                         cache = markdownCache,
-                                        fontSizeSp = chatFontSizeSp
+                                        fontSizeSp = chatFontSizeSp,
+                                        readProgress = readProgressState
+                                            ?.takeIf { it.messageId == message.id && isThisSpeaking }?.ratio
                                     )
                                 }
                             }

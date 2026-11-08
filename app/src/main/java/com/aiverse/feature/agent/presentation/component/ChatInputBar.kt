@@ -128,7 +128,6 @@ import compose.icons.FeatherIcons
 import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.ArrowUp
 import compose.icons.feathericons.Check
-import compose.icons.feathericons.ChevronDown
 import compose.icons.feathericons.ChevronUp
 import compose.icons.feathericons.Copy
 import compose.icons.feathericons.Pause
@@ -138,7 +137,6 @@ import compose.icons.feathericons.X
 import compose.icons.feathericons.Maximize
 import compose.icons.feathericons.Minimize
 import compose.icons.feathericons.Box
-import compose.icons.feathericons.ChevronUp
 import compose.icons.feathericons.Globe
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.Trash
@@ -755,6 +753,8 @@ internal fun ChatInputBar(
                             val density = LocalDensity.current
                             val maxWpx = with(density) { maxWidth.toPx() }
                             var itemWidths by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
+                            // 快捷栏按钮顺序统一为设置页「快捷栏」排序：MCP → 思考 → 文件夹 → 模型 → 用量 → 清空 → 网页搜索 → 余额
+                            val toolbarOrder = listOf(2, 3, 1, 0, -1, 6, 7, 5)
                             val toolbarItems: List<Pair<Int, @Composable () -> Unit>> = buildList {
                                 if (inputBarPrefs.showUsageCard) add(-1 to @Composable {
                                     ContextUsageRing(
@@ -834,23 +834,21 @@ internal fun ChatInputBar(
                                         )
                                     }
                                 })
-                            }
-                            val allMeasured = toolbarItems.all { itemWidths.containsKey(it.first) }
+                            }.sortedBy { toolbarOrder.indexOf(it.first) }
                             val visibleItems = mutableListOf<Pair<Int, @Composable () -> Unit>>()
                             val overflowItems = mutableListOf<Pair<Int, @Composable () -> Unit>>()
-                            if (allMeasured) {
-                                var used = 0
-                                for ((id, content) in toolbarItems) {
-                                    val w = itemWidths[id] ?: 0
-                                    if (used + w <= maxWpx) {
-                                        visibleItems.add(id to content)
-                                        used += w
-                                    } else {
-                                        overflowItems.add(id to content)
-                                    }
+                            // 首帧测量完成前 itemWidths 为空，用预估宽度分配，避免把全部按钮塞进单行被裁剪
+                            // （表现为按钮「隐藏」且无溢出入口）。
+                            val estimateW = with(density) { 36.dp.toPx() }.toInt()
+                            var used = 0
+                            for ((id, content) in toolbarItems) {
+                                val w = itemWidths[id] ?: estimateW
+                                if (used + w <= maxWpx) {
+                                    visibleItems.add(id to content)
+                                    used += w
+                                } else {
+                                    overflowItems.add(id to content)
                                 }
-                            } else {
-                                visibleItems.addAll(toolbarItems)
                             }
                             var overflowExpanded by remember { mutableStateOf(false) }
                             Row(
@@ -864,11 +862,11 @@ internal fun ChatInputBar(
                                         }
                                     ) { content() }
                                 }
-                                if (allMeasured && overflowItems.isNotEmpty()) {
+                                if (overflowItems.isNotEmpty()) {
                                     Box {
                                         IconButton(onClick = { overflowExpanded = !overflowExpanded }, modifier = Modifier.size(36.dp)) {
                                             Icon(
-                                                FeatherIcons.ChevronDown,
+                                                FeatherIcons.ChevronUp,
                                                 contentDescription = stringResource(R.string.chat_more_tools),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
@@ -1141,7 +1139,7 @@ private fun ContextUsageRing(
     }
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(36.dp)
             .clip(CircleShape)
             .clickable(onClick = onToggle)
             .semantics { contentDescription = usageLabel },

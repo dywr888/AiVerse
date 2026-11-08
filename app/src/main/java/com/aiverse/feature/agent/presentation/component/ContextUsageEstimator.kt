@@ -91,18 +91,20 @@ object ContextUsageEstimator {
         }
 
         val sum = rawFile + rawMcp + rawThinking
-        val (file, mcp, thinking) = if (sum > 0 && usedTokens > 0) {
+        // 无真实/事件用量（新会话或回放历史消息）时从消息快照估算总量兜底，避免明细/圆环显示 0。
+        val effectiveUsed = if (usedTokens > 0) usedTokens else estimateTotal(messages)
+        val (file, mcp, thinking) = if (sum > 0 && effectiveUsed > 0) {
             Triple(
-                usedTokens * rawFile / sum,
-                usedTokens * rawMcp / sum,
-                usedTokens * rawThinking / sum
+                effectiveUsed * rawFile / sum,
+                effectiveUsed * rawMcp / sum,
+                effectiveUsed * rawThinking / sum
             )
         } else {
             Triple(0, 0, 0)
         }
-        val other = (usedTokens - file - mcp - thinking).coerceAtLeast(0)
+        val other = (effectiveUsed - file - mcp - thinking).coerceAtLeast(0)
         return ContextUsageDetail(
-            usedTokens = usedTokens,
+            usedTokens = effectiveUsed,
             budgetTokens = budgetTokens,
             fileTokens = file,
             mcpTokens = mcp,
@@ -110,5 +112,27 @@ object ContextUsageEstimator {
             otherTokens = other,
             estimated = estimated
         )
+    }
+
+    /** 从消息快照估算总输入 token（文本 + 附件 + 工具 + 思考），用于无真实用量的兜底。 */
+    fun estimateTotal(messages: List<AgentUIMessage>): Int {
+        var total = 0
+        for (m in messages) {
+            when (m.role) {
+                MessageRole.USER -> {
+                    total += m.content.length / CHARS_PER_TOKEN
+                    for (a in m.attachments) {
+                        total += if (a.isImage) IMAGE_TOKENS
+                        else (a.sizeBytes / 4).toInt().coerceIn(FILE_TOKEN_MIN, FILE_TOKEN_MAX)
+                    }
+                }
+                MessageRole.TOOL -> total += TOOL_RESULT_TOKENS
+                MessageRole.ASSISTANT -> {
+                    total += m.content.length / CHARS_PER_TOKEN
+                    total += (m.reasoning?.length ?: 0) / CHARS_PER_TOKEN
+                }
+            }
+        }
+        return total
     }
 }

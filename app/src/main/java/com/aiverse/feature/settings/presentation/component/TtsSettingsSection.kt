@@ -1,5 +1,7 @@
 package com.aiverse.feature.settings.presentation.component
 
+import android.content.Intent
+import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -34,9 +37,12 @@ import com.aiverse.core.theme.Spacing
 import com.aiverse.core.ui.AppSwitch
 import com.aiverse.core.ui.AppTextField
 import com.aiverse.feature.settings.presentation.TtsSettingsViewModel
+import compose.icons.FeatherIcons
+import compose.icons.feathericons.Volume2
 
 @Composable
 internal fun TtsSettingsSection(viewModel: TtsSettingsViewModel) {
+    val context = LocalContext.current
     val rate by viewModel.rate.collectAsStateWithLifecycle()
     val pitch by viewModel.pitch.collectAsStateWithLifecycle()
     val autoRead by viewModel.autoRead.collectAsStateWithLifecycle()
@@ -80,6 +86,17 @@ internal fun TtsSettingsSection(viewModel: TtsSettingsViewModel) {
             title = stringResource(R.string.tts_code_block_announce),
             subtitle = stringResource(R.string.tts_code_block_announce_sub),
             trailing = { AppSwitch(checked = codeBlockAnnounce, onCheckedChange = viewModel::setCodeBlockAnnounce) }
+        )
+        SettingsDivider()
+        SettingsRow(
+            icon = FeatherIcons.Volume2,
+            title = stringResource(R.string.tts_change_engine),
+            subtitle = stringResource(R.string.tts_change_engine_sub),
+            onClick = {
+                runCatching {
+                    context.startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+                }
+            }
         )
     }
 

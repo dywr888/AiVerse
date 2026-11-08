@@ -134,7 +134,9 @@ internal fun MarkdownContent(
      *  才能触发懒加载），避免超大 md 一次性全量组合/测量造成的卡顿。 */
     lazyScroll: Boolean = false,
     /** 聊天字号（外观设置）：非 null 时覆盖正文/列表/引用字号与行高。 */
-    fontSizeSp: Int? = null
+    fontSizeSp: Int? = null,
+    /** TTS 朗读进度（0..1，已读比例；null=未朗读）。已读部分用主题色高亮，随进度逐段变色。 */
+    readProgress: Float? = null
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val semantic = MaterialTheme.semanticColors
@@ -282,6 +284,31 @@ internal fun MarkdownContent(
 
             // markdownComponents 是 @Composable（内部自带记忆化），不能套 remember，直接调用。
             val mdComponents = markdownComponents(
+                // 正文文本节点：技术关键词（函数/类/变量/API）与核心短语（结论/报错/失败等）高亮，
+                // 用 SpanStyle 着色加粗，不改文本结构，一眼定位重点。
+                text = { model ->
+                    val keywordColor = MaterialTheme.colorScheme.primary
+                    val emphasizeColor = MaterialTheme.colorScheme.error
+                    val readColor = MaterialTheme.colorScheme.primary
+                    MarkdownBasicText(
+                        text = remember(model.content, keywordColor, emphasizeColor, readProgress, readColor, text) {
+                            val base = highlightTechnicalKeywords(model.content, keywordColor, emphasizeColor)
+                            if (readProgress != null && model.content.isNotEmpty()) {
+                                // 按节点在源文本的偏移近似定位已读范围，给节点内已读字符着色。
+                                val srcProgress = (text.length * readProgress).toInt()
+                                val readInNode = (srcProgress - model.node.startOffset)
+                                    .coerceIn(0, model.content.length)
+                                if (readInNode > 0) {
+                                    buildAnnotatedString {
+                                        append(base)
+                                        addStyle(SpanStyle(color = readColor), 0, readInNode)
+                                    }
+                                } else base
+                            } else base
+                        },
+                        style = model.typography.paragraph
+                    )
+                },
                 // 外层 SelectionContainer（MessageBubbles）统一负责选区；超长助手消息已由
                 // AIChatPanel 拆成多条有界 item，不存在超长单 item 的选区树/交互失效问题。
                 codeFence = {
@@ -465,4 +492,49 @@ private fun PlainMarkdownText(
         modifier = modifier,
         style = MaterialTheme.typography.bodyMedium.copy(color = color, lineHeight = 20.sp)
     )
+}
+
+/** 技术关键词：函数/方法调用、点分路径、snake_case、全大写 API 缩写。高置信模式，避免误判。 */
+private val TechnicalKeywordRegex = Regex(
+    "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()" +
+        "|\\b[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)" +
+        "|\\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\\b" +
+        "|\\b(?:API|HTTP|HTTPS|URL|URI|JSON|XML|SQL|HTML|CSS|TCP|UDP|DNS|UUID|JWT|OAuth|REST|CLI|SDK|ID)\\b"
+)
+
+/** 报错类短语：用强调色加粗。 */
+private val ErrorPhraseRegex = Regex("报错|错误原因|报错原因|失败|异常|警告")
+
+/** 结论/成功类核心短语：用主题色加粗。 */
+private val KeyPhraseRegex = Regex("结论|综上所述|成功|注意|必须|禁止")
+
+/**
+ * 正文技术关键词高亮：给匹配到的区间加 SpanStyle（着色 + 加粗）。不改文本内容，
+ * 只叠加样式，不破坏 Markdown 解析；重叠区间按先加入者保留。
+ */
+private fun highlightTechnicalKeywords(
+    content: String,
+    keywordColor: Color,
+    emphasizeColor: Color
+): AnnotatedString {
+    if (content.isBlank()) return AnnotatedString(content)
+    val spans = mutableListOf<Pair<IntRange, SpanStyle>>()
+    val keywordStyle = SpanStyle(color = keywordColor, fontWeight = FontWeight.Medium)
+    val errorStyle = SpanStyle(color = emphasizeColor, fontWeight = FontWeight.SemiBold)
+    val phraseStyle = SpanStyle(color = keywordColor, fontWeight = FontWeight.SemiBold)
+    TechnicalKeywordRegex.findAll(content).forEach { spans += it.range to keywordStyle }
+    ErrorPhraseRegex.findAll(content).forEach { spans += it.range to errorStyle }
+    KeyPhraseRegex.findAll(content).forEach { spans += it.range to phraseStyle }
+    if (spans.isEmpty()) return AnnotatedString(content)
+    return buildAnnotatedString {
+        append(content)
+        var lastEnd = -1
+        for ((range, style) in spans.sortedBy { it.first.first }) {
+            if (range.first < lastEnd) continue
+            if (range.first >= 0 && range.last < content.length && range.first <= range.last) {
+                addStyle(style, range.first, range.last + 1)
+                lastEnd = range.last + 1
+            }
+        }
+    }
 }

@@ -199,6 +199,8 @@
     <string name="tts_auto_read_sub">回复生成完成后自动朗读</string>
     <string name="tts_code_block_announce">提示代码块</string>
     <string name="tts_code_block_announce_sub">朗读时跳过代码块，或提示「代码块请查看」</string>
+    <string name="tts_change_engine">更换系统 TTS 引擎</string>
+    <string name="tts_change_engine_sub">在系统设置中选择语音引擎（更换后下次朗读自动生效）</string>
     <string name="tts_play">朗读</string>
     <string name="tts_stop">停止朗读</string>
     <string name="tts_online_section">在线 TTS 接口（可选）</string>
@@ -872,8 +874,11 @@
     <string name="file_browser_import_failed">导入失败</string>
     <string name="file_browser_import_success">已导入 %1$d 个文件</string>
     <string name="file_browser_move_failed">移动失败</string>
+    <string name="file_browser_paste_failed">粘贴失败</string>
     <string name="file_browser_move_cut_hint">已剪切 %1$d 项，点击目标目录粘贴</string>
     <string name="file_browser_move_success">已移动 %1$d 项</string>
+    <string name="file_browser_copy_hint">已复制 %1$d 项，点击目标目录粘贴</string>
+    <string name="file_browser_copy_success">已复制 %1$d 项</string>
     <string name="file_browser_edit_mode">编辑</string>
     <string name="editor_undo">撤销</string>
     <string name="editor_redo">重做</string>
@@ -994,8 +999,8 @@
     <string name="chat_context_estimate_note">分类为估算，仅作参考</string>
     <string name="chat_context_close">关闭</string>
     <string name="chat_context_used_of_budget">已用 %1$d / %2$d tokens</string>
-    <string name="chat_context_used_tokens">已用 %1$d tokens</string>
-    <string name="chat_context_budget_tokens">上下文上限 %1$d tokens</string>
+    <string name="chat_context_used_tokens">已用 %1$s tokens</string>
+    <string name="chat_context_budget_tokens">上下文上限 %1$s tokens</string>
     <string name="chat_context_auto_compact">达到 %1$d%% 时自动压缩</string>
     <string name="chat_context_compact_now">立即压缩</string>
     <string name="chat_bg_command_done">后台命令已完成</string>

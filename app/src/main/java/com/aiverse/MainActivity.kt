@@ -751,10 +751,11 @@ fun AppNavigation(
                     }
                 }
             },
+            onCopyEntries = { agentViewModel.copyEntries(it) },
             onCutEntries = { agentViewModel.cutEntries(it) },
             onPasteEntries = {
                 agentViewModel.pasteEntries(it) { ok ->
-                    if (!ok) toastFileOpFailed(context, R.string.file_browser_move_failed)
+                    if (!ok) toastFileOpFailed(context, R.string.file_browser_paste_failed)
                 }
             },
             batchCut = agentViewModel.browseBatchCut.collectAsStateWithLifecycle().value,
@@ -764,6 +765,10 @@ fun AppNavigation(
             onSelect = {
                 agentViewModel.selectSession(it.id)
                 if (!permanentDrawer) scope.launch { drawerState.close() }
+                // 从设置/其它页选会话时跳回聊天页，否则会留在原页（如设置页）
+                if (currentRoute != "chat") {
+                    navController.navigate("chat") { popUpTo("chat") { inclusive = false } }
+                }
             },
             onDelete = { agentViewModel.deleteSession(it.id) },
             onDeleteSessions = { agentViewModel.deleteSessions(it) },
@@ -908,6 +913,12 @@ fun AppNavigation(
             ) { backStackEntry ->
                 val sectionArg = backStackEntry.arguments?.getString("section").orEmpty()
                 val fromChat = backStackEntry.arguments?.getString("from") == "chat"
+                // 设置页主菜单按系统返回：与顶栏返回一致（回聊天页；聊天快捷入口进来的直接回聊天不弹抽屉）。
+                // 子 section 的返回由 SettingsScreen 内部 BackHandler 优先处理（回父菜单）。
+                BackHandler {
+                    navController.popBackStack()
+                    if (!expanded && !fromChat) scope.launch { drawerState.open() }
+                }
                 // 复用 Activity 级 settingsViewModel（MainActivity 顶部已创建并 init），
                 // 避免进入设置页时再建一个 NavBackStackEntry 级实例、重复跑 init 与 9 路 flow 订阅，
                 // 这是侧边栏点设置「卡一下」的主因。

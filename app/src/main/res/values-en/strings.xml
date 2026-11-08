@@ -197,6 +197,8 @@
     <string name="tts_auto_read_sub">Read aloud when a reply finishes</string>
     <string name="tts_code_block_announce">Announce code blocks</string>
     <string name="tts_code_block_announce_sub">Skip code blocks or say \'code block, please view\'</string>
+    <string name="tts_change_engine">Change system TTS engine</string>
+    <string name="tts_change_engine_sub">Choose speech engine in system settings (applies on next read)</string>
     <string name="tts_play">Read aloud</string>
     <string name="tts_stop">Stop reading</string>
     <string name="tts_online_section">Online TTS endpoint (optional)</string>
@@ -877,8 +879,11 @@
     <string name="file_browser_import_failed">Import failed</string>
     <string name="file_browser_import_success">Imported %1$d files</string>
     <string name="file_browser_move_failed">Move failed</string>
+    <string name="file_browser_paste_failed">Paste failed</string>
     <string name="file_browser_move_cut_hint">Cut %1$d item(s), tap a folder to paste</string>
     <string name="file_browser_move_success">Moved %1$d item(s)</string>
+    <string name="file_browser_copy_hint">Copied %1$d item(s), tap a folder to paste</string>
+    <string name="file_browser_copy_success">Copied %1$d item(s)</string>
     <string name="file_browser_edit_mode">Edit</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
@@ -991,8 +996,8 @@
     <string name="chat_context_estimate_note">Estimates; for reference only</string>
     <string name="chat_context_close">Close</string>
     <string name="chat_context_used_of_budget">Used %1$d / %2$d tokens</string>
-    <string name="chat_context_used_tokens">Used %1$d tokens</string>
-    <string name="chat_context_budget_tokens">Context budget %1$d tokens</string>
+    <string name="chat_context_used_tokens">Used %1$s tokens</string>
+    <string name="chat_context_budget_tokens">Context budget %1$s tokens</string>
     <string name="chat_context_auto_compact">Auto-compact at %1$d%%</string>
     <string name="chat_context_compact_now">Compact now</string>
     <string name="chat_bg_command_done">Background command completed</string>

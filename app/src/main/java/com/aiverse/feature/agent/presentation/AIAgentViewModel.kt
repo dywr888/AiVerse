@@ -821,14 +821,17 @@ class AIAgentViewModel @Inject constructor(
 
     // region 批量移动 / 分享 / 导入 / 导出
 
-    /** 批量剪切板：多选后剪切多条，供粘贴到目标目录（移动）。 */
+    /** 批量剪切板：多选后复制或剪切多条，供粘贴到目标目录。 */
     private val _browseBatchCut = MutableStateFlow<Set<String>>(emptySet())
     val browseBatchCut: StateFlow<Set<String>> = _browseBatchCut.asStateFlow()
+    /** 批量剪切板类型：true=剪切（移动，粘贴后删源）；false=复制（粘贴不删源）。 */
+    private val _browseBatchCutIsCut = MutableStateFlow(true)
 
-    /** 多选剪切：把 [paths] 存入批量剪切板，清空单条剪切板避免混淆。 */
+    /** 多选剪切：把 [paths] 存入批量剪切板（类型=移动），清空单条剪切板避免混淆。 */
     fun cutEntries(paths: Set<String>) {
         if (paths.isEmpty()) return
         _browseBatchCut.value = paths
+        _browseBatchCutIsCut.value = true
         _browseClipboard.value = null
         runCatching {
             Toast.makeText(
@@ -839,11 +842,27 @@ class AIAgentViewModel @Inject constructor(
         }
     }
 
-    fun clearBatchCut() {
-        _browseBatchCut.value = emptySet()
+    /** 多选复制：把 [paths] 存入批量剪切板（类型=复制），清空单条剪切板避免混淆。 */
+    fun copyEntries(paths: Set<String>) {
+        if (paths.isEmpty()) return
+        _browseBatchCut.value = paths
+        _browseBatchCutIsCut.value = false
+        _browseClipboard.value = null
+        runCatching {
+            Toast.makeText(
+                context,
+                context.getString(R.string.file_browser_copy_hint, paths.size),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
-    /** 把批量剪切板内容移动到 [targetDir]；逐条 move，部分失败不影响其余。 */
+    fun clearBatchCut() {
+        _browseBatchCut.value = emptySet()
+        _browseBatchCutIsCut.value = true
+    }
+
+    /** 把批量剪切板内容粘贴到 [targetDir]；复制不删源，移动粘贴后删源；逐条处理，部分失败不影响其余。 */
     fun pasteEntries(targetDir: String, onResult: (Boolean) -> Unit) = mutateBrowse(
         busyPaths = _browseBatchCut.value,
         onResult = onResult
@@ -852,24 +871,25 @@ class AIAgentViewModel @Inject constructor(
         if (sources.isEmpty()) {
             false
         } else {
+            val isCut = _browseBatchCutIsCut.value
             var allOk = true
-            var movedCount = 0
+            var doneCount = 0
             for (src in sources) {
                 val name = src.substringAfterLast('/')
                 val target = "$targetDir/$name"
                 if (target == src || target.startsWith("${src.trimEnd('/')}/")) continue
-                runCatching { fileAccess.move(src, target, overwrite = false) }
-                    .onSuccess { movedCount++ }
-                    .onFailure { allOk = false }
+                runCatching {
+                    if (isCut) fileAccess.move(src, target, overwrite = false)
+                    else fileAccess.copy(src, target, overwrite = false)
+                }.onSuccess { doneCount++ }.onFailure { allOk = false }
             }
             _browseBatchCut.value = emptySet()
-            if (movedCount > 0) {
+            _browseBatchCutIsCut.value = true
+            if (doneCount > 0) {
                 runCatching {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.file_browser_move_success, movedCount),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val msgRes = if (isCut) R.string.file_browser_move_success
+                    else R.string.file_browser_copy_success
+                    Toast.makeText(context, context.getString(msgRes, doneCount), Toast.LENGTH_SHORT).show()
                 }
             }
             allOk

@@ -1,18 +1,22 @@
 package com.aiverse.core.tts
 
 import android.content.Context
+import android.os.SystemClock
 import com.aiverse.feature.settings.data.repository.TtsCodeBlockMode
 import com.aiverse.feature.settings.data.repository.TtsSettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,6 +28,13 @@ import javax.inject.Singleton
  * 状态以 [StateFlow] 暴露给 UI：正在播放的消息高亮、按钮图标切换。单例，App 生命周期内复用引擎。
  * 设置（语速/音调/代码块模式）通过后台 collect 缓存，play 时直接取用（避免同步读 DataStore）。
  */
+
+/** 朗读进度（按时间估算已读比例），供 UI 给已朗读文本逐字变色。 */
+data class ReadProgress(
+    val messageId: String,
+    val ratio: Float
+)
+
 @Singleton
 class TtsController @Inject constructor(
     @ApplicationContext context: Context,
@@ -38,6 +49,10 @@ class TtsController @Inject constructor(
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _readProgress = MutableStateFlow<ReadProgress?>(null)
+    val readProgress: StateFlow<ReadProgress?> = _readProgress.asStateFlow()
+    private var progressJob: Job? = null
 
     private val _errorMessage = MutableSharedFlow<String>()
     val errorMessage: SharedFlow<String> = _errorMessage.asSharedFlow()
@@ -90,6 +105,8 @@ class TtsController @Inject constructor(
         if (text.isBlank()) return
         _currentMessageId.value = messageId
         _isPlaying.value = true
+        // 朗读进度（按时间估算）：随语速推进已读比例，供 UI 给已朗读文本逐字变色。
+        startReadProgress(messageId, text.length)
 
         val onlineConfig = OnlineTtsConfig(cachedBaseUrl, cachedApiKey, cachedModel, cachedVoice, cachedRate, cachedProviderType)
         if (cachedOnlineEnabled && onlineConfig.isUsable) {
@@ -126,8 +143,26 @@ class TtsController @Inject constructor(
 
     private fun finish() {
         lastSegmentId = null
+        progressJob?.cancel()
+        progressJob = null
         _isPlaying.value = false
         _currentMessageId.value = null
+        _readProgress.value = null
+    }
+
+    /** 启动朗读进度估算：按经过时间 × 语速推进已读比例，消息读完由 [finish] 清空。 */
+    private fun startReadProgress(messageId: String, totalChars: Int) {
+        progressJob?.cancel()
+        if (totalChars <= 0) return
+        progressJob = scope.launch {
+            val start = SystemClock.elapsedRealtime()
+            while (isActive) {
+                val elapsedSec = (SystemClock.elapsedRealtime() - start) / 1000f
+                val ratio = (elapsedSec * CHARS_PER_SEC * cachedRate / totalChars).coerceIn(0f, 1f)
+                _readProgress.value = ReadProgress(messageId, ratio)
+                delay(100)
+            }
+        }
     }
 
     fun release() {
@@ -138,5 +173,7 @@ class TtsController @Inject constructor(
     private companion object {
         // 系统 TTS 单次 speak 文本上限留余量（部分引擎 ~4000 字符），超长分段入队。
         const val MAX_TTS_CHARS = 3500
+        // 朗读进度估算基准：中文语速约 18 字/秒（随语速设置缩放）。
+        const val CHARS_PER_SEC = 18f
     }
 }

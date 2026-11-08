@@ -115,7 +115,7 @@ internal fun ContextUsageDetailCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.chat_context_used_tokens, detail.usedTokens),
+                        text = stringResource(R.string.chat_context_used_tokens, formatTokenCount(detail.usedTokens)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -124,7 +124,7 @@ internal fun ContextUsageDetailCard(
                     )
                     Spacer(Modifier.width(Spacing.xs))
                     Text(
-                        text = stringResource(R.string.chat_context_budget_tokens, detail.budgetTokens),
+                        text = stringResource(R.string.chat_context_budget_tokens, formatTokenCount(detail.budgetTokens)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -234,10 +234,13 @@ private fun DetailRow(label: String, value: Int, total: Int, color: androidx.com
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "$value  ($pct%)",
+            text = "${formatTokenCount(value)}  ($pct%)",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.End
         )
     }
 }
+
+/** 把 token 数格式化成易读形式（委托 Long 版重载，保持 %.1f 格式一致）。 */
+internal fun formatTokenCount(value: Int): String = formatTokenCount(value.toLong())

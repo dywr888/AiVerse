@@ -16,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 自定义模型元数据的本地缓存存储（存于 app 缓存目录，可随时被系统清理）。
+ * 自定义模型元数据的本地持久存储（存于应用文件目录，App 更新/系统清理缓存都不丢失）。
  * key 为「提供商ID:模型名」复合键；优先级高于拉取/内置元数据。
  */
 @Singleton
@@ -54,13 +54,28 @@ class CustomModelMetadataStore @Inject constructor(
 
     private fun read(): Map<String, ModelMetadata> {
         val f = file()
-        if (!f.isFile) return emptyMap()
-        return runCatching {
-            json.decodeFromString<Map<String, ModelMetadata>>(f.readText(Charsets.UTF_8))
-        }.getOrElse {
-            FileLogger.w(TAG, "读取自定义模型元数据失败", it)
-            emptyMap()
+        if (f.isFile) {
+            return runCatching {
+                json.decodeFromString<Map<String, ModelMetadata>>(f.readText(Charsets.UTF_8))
+            }.getOrElse {
+                FileLogger.w(TAG, "读取自定义模型元数据失败", it)
+                emptyMap()
+            }
         }
+        // 迁移旧版缓存目录数据：曾存于 cacheDir（可被系统清理，导致用户自定义参数丢失），
+        // 首次读到旧文件时搬进 filesDir 并删除缓存副本。
+        val legacy = File(context.cacheDir, FILE_NAME)
+        if (legacy.isFile) {
+            val data = runCatching {
+                json.decodeFromString<Map<String, ModelMetadata>>(legacy.readText(Charsets.UTF_8))
+            }.getOrNull()
+            if (data != null && data.isNotEmpty()) {
+                write(data)
+                legacy.delete()
+                return data
+            }
+        }
+        return emptyMap()
     }
 
     private fun write(map: Map<String, ModelMetadata>) {
@@ -71,7 +86,7 @@ class CustomModelMetadataStore @Inject constructor(
         }
     }
 
-    private fun file(): File = File(context.cacheDir, FILE_NAME)
+    private fun file(): File = File(context.filesDir, FILE_NAME)
 
     private companion object {
         const val TAG = "CustomModelMetadataStore"

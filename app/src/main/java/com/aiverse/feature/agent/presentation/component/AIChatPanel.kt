@@ -922,14 +922,14 @@ fun AIChatPanel(
     val activeModel = activeProvider?.effectiveModel.orEmpty()
     val activeModelMetadata = activeProvider?.let { modelMetadata[modelMetadataKey(it.id, activeModel)] }
     // 上下文用量明细：点击快捷栏圆环弹出；分类按当前会话消息快照估算。
-    val contextUsageDetail = remember(currentSessionId, contextUsages, messages, sessionLastInputTokens) {
+    val contextUsageDetail = remember(currentSessionId, contextUsages, messages, sessionInputTokens) {
         val contextLimit = activeModelMetadata?.let {
             com.aiverse.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
         } ?: 0
         val usage = contextUsages[currentSessionId]
-        val used = usage?.inputTokens ?: sessionLastInputTokens
-        val estimated = usage?.estimated ?: (sessionLastInputTokens <= 0 && currentSessionId != null)
-        if (contextLimit > 0 && currentSessionId != null && used > 0) {
+        val used = usage?.inputTokens?.takeIf { it > 0 } ?: sessionInputTokens
+        val estimated = usage?.estimated ?: (sessionInputTokens <= 0 && currentSessionId != null)
+        if (contextLimit > 0 && currentSessionId != null && (used > 0 || messages.isNotEmpty())) {
             ContextUsageEstimator.estimate(messages, used, contextLimit, estimated)
         } else null
     }
@@ -1908,15 +1908,18 @@ fun AIChatPanel(
                         settingsViewModel?.refreshProviderDashboard(it, context = context, force = true)
                     }
                 },
-                tokenEstimated = contextUsages[currentSessionId]?.estimated ?: (sessionLastInputTokens <= 0 && currentSessionId != null),
+                tokenEstimated = contextUsages[currentSessionId]?.estimated ?: (sessionInputTokens <= 0 && currentSessionId != null),
                 tokenProgress = run {
                     val contextLimit = activeModelMetadata?.let {
                         com.aiverse.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
                     } ?: 0
-                    val usage = contextUsages[currentSessionId]?.takeIf { sessionLastInputTokens > 0 || isBusy }
-                    if (contextLimit > 0) {
-                        (usage?.inputTokens ?: sessionLastInputTokens).toFloat() / contextLimit
-                    } else 0f
+                    // 上下文用量：优先用最近一次 ContextUsage 事件（流式预测/实际，随每轮更新），
+                    // 否则回落到会话累计输入 tokens；两者皆 0（新会话/回放历史）时从消息快照估算兜底。
+                    val usedTokens = contextUsages[currentSessionId]?.inputTokens
+                        ?.takeIf { it > 0 } ?: sessionInputTokens
+                    val effectiveUsed = if (usedTokens > 0) usedTokens
+                    else ContextUsageEstimator.estimateTotal(messages)
+                    if (contextLimit > 0) (effectiveUsed.toFloat() / contextLimit).coerceIn(0f, 1f) else 0f
                 },
                 isScrolling = listState.isScrollInProgress,
                 forceOpenModelSheet = onboardingStep == OnboardingStep.SIMULATE_CHOOSE_MODEL,

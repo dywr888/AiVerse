@@ -184,10 +184,11 @@ fun ChatDrawerContent(
     onPasteOverwrite: () -> Unit,
     onCancelPasteOverwrite: () -> Unit,
     onClearClipboard: () -> Unit,
-    // 文件管理增强：分享/导入/导出/批量移动
+    // 文件管理增强：分享/导入/导出/批量移动/复制
     onShareEntries: (Set<String>) -> Unit,
     onExportEntries: (Set<String>, Uri) -> Unit,
     onImportFiles: (List<Uri>, String) -> Unit,
+    onCopyEntries: (Set<String>) -> Unit,
     onCutEntries: (Set<String>) -> Unit,
     onPasteEntries: (String) -> Unit,
     batchCut: Set<String> = emptySet(),
@@ -241,7 +242,7 @@ fun ChatDrawerContent(
                 )
             )
             .padding(horizontal = Spacing.lg)
-            .padding(bottom = imeInset + Spacing.xl),
+            .padding(bottom = imeInset),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         // 顶部 Tab 切换
@@ -386,6 +387,7 @@ fun ChatDrawerContent(
                     onShareEntries = onShareEntries,
                     onExportEntries = onExportEntries,
                     onImportFiles = onImportFiles,
+                    onCopyEntries = onCopyEntries,
                     onCutEntries = onCutEntries,
                     onPasteEntries = onPasteEntries,
                     batchCut = batchCut,
@@ -920,6 +922,7 @@ private fun FileBrowserTab(
     onShareEntries: (Set<String>) -> Unit,
     onExportEntries: (Set<String>, Uri) -> Unit,
     onImportFiles: (List<Uri>, String) -> Unit,
+    onCopyEntries: (Set<String>) -> Unit,
     onCutEntries: (Set<String>) -> Unit,
     onPasteEntries: (String) -> Unit,
     batchCut: Set<String> = emptySet(),
@@ -929,6 +932,8 @@ private fun FileBrowserTab(
     // 编辑模式：点击编辑按钮进入，行前置复选框可勾选；选中后可批量分享/导出/移动/删除
     var editMode by remember { mutableStateOf(false) }
     var selectedPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 批量粘贴按钮的目标：工作区根目录路径（从树根节点取）
+    val batchRootPath = (state as? FileBrowseState.Success)?.nodes?.firstOrNull { it.root != null }?.path
     // 用户手动取消的后代（从选中文件夹的整体选中中排除），用于文件夹半选态
     var unselectedFromFolders by remember { mutableStateOf<Set<String>>(emptySet()) }
     val inSelectionMode = editMode
@@ -1147,7 +1152,7 @@ private fun FileBrowserTab(
                 )
             }
         }
-        // 多选批量操作栏：编辑模式且选中后底部显示分享/导出/移动/删除/取消
+        // 多选批量操作栏：编辑模式且选中后底部显示分享/导出/复制/移动/粘贴/删除/取消；图标行可横向滚动避免小屏挤爆
         if (inSelectionMode && selectedPaths.isNotEmpty()) {
             Surface(
                 modifier = Modifier
@@ -1161,40 +1166,59 @@ private fun FileBrowserTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = stringResource(R.string.file_browser_selected_count, selectedPaths.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.padding(horizontal = Spacing.xs)
                     )
-                    IconButton(onClick = { onShareEntries(selectedPaths) }, modifier = Modifier.size(36.dp)) {
-                        Icon(FeatherIcons.Share2, contentDescription = stringResource(R.string.file_browser_share), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = {
-                        exportPendingPaths = selectedPaths
-                        exportLauncher.launch("export_${System.currentTimeMillis()}.zip")
-                    }, modifier = Modifier.size(36.dp)) {
-                        Icon(FeatherIcons.Download, contentDescription = stringResource(R.string.file_browser_export), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = {
-                        onCutEntries(selectedPaths)
-                        selectedPaths = emptySet()
-                        unselectedFromFolders = emptySet()
-                    }, modifier = Modifier.size(36.dp)) {
-                        Icon(FeatherIcons.CornerUpRight, contentDescription = stringResource(R.string.file_browser_move), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = {
-                        selectedPaths.forEach { onBatchDelete(it) }
-                        selectedPaths = emptySet()
-                        unselectedFromFolders = emptySet()
-                    }, modifier = Modifier.size(36.dp)) {
-                        Icon(FeatherIcons.Trash2, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = { selectedPaths = emptySet(); unselectedFromFolders = emptySet(); editMode = false }, modifier = Modifier.size(36.dp)) {
-                        Icon(FeatherIcons.X, contentDescription = stringResource(R.string.file_browser_cancel_selection), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { onShareEntries(selectedPaths) }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.Share2, contentDescription = stringResource(R.string.file_browser_share), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = {
+                            exportPendingPaths = selectedPaths
+                            exportLauncher.launch("export_${System.currentTimeMillis()}.zip")
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.Download, contentDescription = stringResource(R.string.file_browser_export), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = {
+                            onCopyEntries(selectedPaths)
+                            selectedPaths = emptySet()
+                            unselectedFromFolders = emptySet()
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.Copy, contentDescription = stringResource(R.string.common_copy), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = {
+                            onCutEntries(selectedPaths)
+                            selectedPaths = emptySet()
+                            unselectedFromFolders = emptySet()
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.CornerUpRight, contentDescription = stringResource(R.string.file_browser_move), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+                        }
+                        // 粘贴：把批量剪切板内容粘贴到工作区根；复制/剪切后点任意子目录也能粘贴到那里
+                        IconButton(
+                            onClick = { batchRootPath?.let { onPasteEntries(it) } },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(FeatherIcons.Clipboard, contentDescription = stringResource(R.string.file_browser_paste_here), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = {
+                            selectedPaths.forEach { onBatchDelete(it) }
+                            selectedPaths = emptySet()
+                            unselectedFromFolders = emptySet()
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.Trash2, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = { selectedPaths = emptySet(); unselectedFromFolders = emptySet(); editMode = false }, modifier = Modifier.size(36.dp)) {
+                            Icon(FeatherIcons.X, contentDescription = stringResource(R.string.file_browser_cancel_selection), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }

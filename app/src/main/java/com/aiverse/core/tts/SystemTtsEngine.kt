@@ -1,6 +1,7 @@
 package com.aiverse.core.tts
 
 import android.content.Context
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
@@ -13,15 +14,21 @@ import java.util.Locale
  */
 class SystemTtsEngine(context: Context) : TtsEngine {
 
+    private val appContext = context.applicationContext
     private var tts: TextToSpeech? = null
+    @Volatile private var enginePkg: String? = null
     @Volatile private var ready = false
     private var errorCallback: (() -> Unit)? = null
     private var pendingTexts = mutableListOf<Triple<String, String, Boolean>>()
     private var readyCallback: (() -> Unit)? = null
     private var progressListener: ((String, UtteranceEvent) -> Unit)? = null
 
-    init {
-        tts = TextToSpeech(context) { status ->
+    init { createTts() }
+
+    private fun createTts() {
+        enginePkg = systemDefaultEngine()
+        ready = false
+        tts = TextToSpeech(appContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.setLanguage(Locale.getDefault())
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -46,6 +53,19 @@ class SystemTtsEngine(context: Context) : TtsEngine {
         }
     }
 
+    /** 系统默认 TTS 引擎包名（Settings.Secure 的 tts_default_synth 反映用户更换后的引擎）。 */
+    private fun systemDefaultEngine(): String? =
+        Settings.Secure.getString(appContext.contentResolver, "tts_default_synth")
+
+    /** 系统默认 TTS 引擎被更换后，重建底层引擎实例使新引擎生效。 */
+    private fun ensureEngine() {
+        val current = systemDefaultEngine()
+        if (current != enginePkg) {
+            tts?.shutdown()
+            createTts()
+        }
+    }
+
     override fun setOnReady(callback: () -> Unit) {
         readyCallback = callback
         if (ready) callback()
@@ -60,6 +80,7 @@ class SystemTtsEngine(context: Context) : TtsEngine {
     }
 
     override fun speak(text: String, utteranceId: String, flush: Boolean) {
+        ensureEngine()
         if (ready) speakInternal(text, utteranceId, flush)
         else pendingTexts.add(Triple(text, utteranceId, flush))
     }
