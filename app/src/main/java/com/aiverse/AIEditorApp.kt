@@ -245,6 +245,10 @@ class AIEditorApp : Application(), Configuration.Provider {
     @Inject
     lateinit var pluginManager: com.aiverse.feature.plugins.domain.PluginManager
 
+    /** 插件仓库更新检查：启动即异步拉取 index 比较本地版本，产出可更新集合。 */
+    @Inject
+    lateinit var pluginUpdateChecker: com.aiverse.feature.plugins.domain.PluginUpdateChecker
+
     /** 长驻作用域：持续把持久化的日志等级同步到 FileLogger。 */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -286,6 +290,10 @@ class AIEditorApp : Application(), Configuration.Provider {
         // 启动即异步同步已启用脚本插件的工具（QuickJS 加载放 IO，不阻塞首屏）。
         appScope.launch {
             pluginManager.syncEnabled()
+        }
+        // 启动即异步检查插件仓库更新（拉 index 比较本地版本，失败静默；不阻塞首屏）。
+        appScope.launch {
+            pluginUpdateChecker.check()
         }
         // 启动即释放内置子代理定义（Explore）到 ~/.aiverse/agents/；已存在不覆盖，用户改过或删掉都不会被升级拉回。
         appScope.launch {

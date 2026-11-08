@@ -200,7 +200,8 @@
     <string name="tts_code_block_announce">提示代码块</string>
     <string name="tts_code_block_announce_sub">朗读时跳过代码块，或提示「代码块请查看」</string>
     <string name="tts_change_engine">更换系统 TTS 引擎</string>
-    <string name="tts_change_engine_sub">在系统设置中选择语音引擎（更换后下次朗读自动生效）</string>
+    <string name="tts_change_engine_sub">跳转系统语音设置，选择引擎或申请权限</string>
+    <string name="tts_change_engine_failed">无法打开系统语音设置</string>
     <string name="tts_play">朗读</string>
     <string name="tts_stop">停止朗读</string>
     <string name="tts_online_section">在线 TTS 接口（可选）</string>
@@ -222,9 +223,21 @@
     <string name="plugins_confirm_uninstall_message">确定卸载「%1$s」吗？此操作会删除插件文件。</string>
     <string name="plugins_installed_enabled">已安装并启用 %1$s</string>
     <string name="plugins_installed_dangerous">已安装 %1$s，含危险权限，请确认后启用</string>
+    <string name="plugins_need_all_files_access">%1$s 需要「所有文件访问」权限，已跳转系统设置，请开启后再启用插件</string>
+    <string name="plugins_need_notify_permission">%1$s 需要通知权限，请允许通知后再启用插件</string>
     <string name="plugins_uninstalled">已卸载</string>
     <string name="plugins_error_read_zip">无法读取所选文件</string>
     <string name="plugins_error_not_found">插件不存在</string>
+    <string name="plugins_install_from_repo">从仓库</string>
+    <string name="plugins_install_from_local">从本地</string>
+    <string name="plugins_repo_title">插件仓库</string>
+    <string name="plugins_back">返回</string>
+    <string name="plugins_repo_retry">重试</string>
+    <string name="plugins_repo_empty">插件仓库暂无插件</string>
+    <string name="plugins_repo_last_update">最后更新 %1$s</string>
+    <string name="plugins_update">更新</string>
+    <string name="plugins_installed_latest">已安装</string>
+    <string name="plugins_updated">已更新 %1$s</string>
     <string name="settings_language">语言</string>
     <string name="settings_token_stats_title">Token 统计</string>
 

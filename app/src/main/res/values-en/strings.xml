@@ -198,7 +198,8 @@
     <string name="tts_code_block_announce">Announce code blocks</string>
     <string name="tts_code_block_announce_sub">Skip code blocks or say \'code block, please view\'</string>
     <string name="tts_change_engine">Change system TTS engine</string>
-    <string name="tts_change_engine_sub">Choose speech engine in system settings (applies on next read)</string>
+    <string name="tts_change_engine_sub">Open system voice settings to choose engine or request permission</string>
+    <string name="tts_change_engine_failed">Unable to open system voice settings</string>
     <string name="tts_play">Read aloud</string>
     <string name="tts_stop">Stop reading</string>
     <string name="tts_online_section">Online TTS endpoint (optional)</string>
@@ -220,9 +221,21 @@
     <string name="plugins_confirm_uninstall_message">Uninstall "%1$s"? This will delete the plugin files.</string>
     <string name="plugins_installed_enabled">Installed and enabled %1$s</string>
     <string name="plugins_installed_dangerous">Installed %1$s with dangerous permissions. Review and enable it.</string>
+    <string name="plugins_need_all_files_access">%1$s requires "All files access" permission. Opening settings, enable it then re-enable the plugin</string>
+    <string name="plugins_need_notify_permission">%1$s requires notification permission. Allow notifications then re-enable the plugin</string>
     <string name="plugins_uninstalled">Uninstalled</string>
     <string name="plugins_error_read_zip">Cannot read the selected file</string>
     <string name="plugins_error_not_found">Plugin not found</string>
+    <string name="plugins_install_from_repo">From repository</string>
+    <string name="plugins_install_from_local">From local</string>
+    <string name="plugins_repo_title">Plugin repository</string>
+    <string name="plugins_back">Back</string>
+    <string name="plugins_repo_retry">Retry</string>
+    <string name="plugins_repo_empty">No plugins in repository</string>
+    <string name="plugins_repo_last_update">Last updated %1$s</string>
+    <string name="plugins_update">Update</string>
+    <string name="plugins_installed_latest">Installed</string>
+    <string name="plugins_updated">Updated %1$s</string>
     <string name="settings_language">Language</string>
     <string name="settings_token_stats_title">Token Stats</string>
 

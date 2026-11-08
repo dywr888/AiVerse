@@ -1,7 +1,9 @@
 package com.aiverse.feature.settings.presentation.component
 
 import android.content.Intent
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -93,8 +95,16 @@ internal fun TtsSettingsSection(viewModel: TtsSettingsViewModel) {
             title = stringResource(R.string.tts_change_engine),
             subtitle = stringResource(R.string.tts_change_engine_sub),
             onClick = {
-                runCatching {
-                    context.startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+                // 打开系统设置（无障碍 → 文字转语音，可换引擎/申请权限），回退安装语音数据，再失败提示。
+                val opened = runCatching {
+                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }.isSuccess
+                if (!opened) {
+                    runCatching {
+                        context.startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+                    }.onFailure {
+                        Toast.makeText(context, context.getString(R.string.tts_change_engine_failed), Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         )

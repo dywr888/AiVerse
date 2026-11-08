@@ -1,12 +1,23 @@
 package com.aiverse.feature.plugins.domain
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import com.aiverse.MainActivity
 import com.aiverse.feature.agent.domain.permission.PermissionChoice
 import com.aiverse.feature.agent.domain.tool.AgentTool
 import com.aiverse.feature.agent.domain.tool.PendingToolPermission
@@ -88,8 +99,58 @@ class CtxApi(
     @JavascriptInterface
     fun notify(title: String, body: String) {
         require(PluginPermissions.NOTIFY)
-        mainHandler.post { Toast.makeText(appContext, "$title\n$body", Toast.LENGTH_LONG).show() }
+        if (!ensureChannel()) return
+        if (!canPostNotifications()) {
+            showToast("通知权限未开启：$title")
+            return
+        }
+        val openApp = PendingIntent.getActivity(
+            appContext,
+            0,
+            Intent(appContext, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(appContext).notify(notificationId(title), notification)
+        } catch (e: SecurityException) {
+            showToast("通知失败：${e.message ?: "无权限"}")
+        }
     }
+
+    /** 创建插件通知渠道（幂等）。返回是否成功（API < 26 也视为成功，用兼容通道）。 */
+    private fun ensureChannel(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "插件通知", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "脚本插件发送的通知"
+                    setShowBadge(false)
+                }
+            )
+        }
+        return true
+    }
+
+    /** Android 13+ 需 POST_NOTIFICATIONS 运行时权限，且系统通知总开关开启。 */
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        return NotificationManagerCompat.from(appContext).areNotificationsEnabled()
+    }
+
+    private fun notificationId(title: String): Int = title.hashCode() and 0x7fffffff
 
     // ---- 环境变量（会话级内存） ----
     private val envMap = mutableMapOf<String, String>()
@@ -209,6 +270,46 @@ class CtxApi(
         } else "[]"
     }
 
+    // ---- all-files read（读任意路径，需所有文件访问权限） ----
+    @JavascriptInterface
+    fun readSystemFile(path: String): String {
+        require(PluginPermissions.ALL_FILES)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            return err("需要「所有文件访问」权限，请在系统设置中开启")
+        }
+        val f = File(path)
+        if (f.isDirectory) return err("是目录，请指定文件路径: $path")
+        if (!f.exists()) return err("文件不存在: $path")
+        return try {
+            buildJsonObject {
+                put("status", JsonPrimitive("success"))
+                put("data", JsonPrimitive(f.readText(Charsets.UTF_8)))
+            }.toString()
+        } catch (e: Exception) {
+            err("读取失败（非文本或编码不支持）: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
+    @JavascriptInterface
+    fun writeSystemFile(path: String, content: String): String {
+        require(PluginPermissions.ALL_FILES)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            return err("需要「所有文件访问」权限，请在系统设置中开启")
+        }
+        val f = File(path)
+        if (f.isDirectory) return err("是目录，请指定文件路径: $path")
+        return try {
+            f.parentFile?.mkdirs()
+            f.writeText(content, Charsets.UTF_8)
+            buildJsonObject {
+                put("status", JsonPrimitive("success"))
+                put("data", JsonPrimitive("已保存: $path"))
+            }.toString()
+        } catch (e: Exception) {
+            err("保存失败: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
     // ---- clipboard ----
     @JavascriptInterface
     fun clipboardGet(): String {
@@ -257,6 +358,10 @@ class CtxApi(
 
     private fun err(msg: String): String = buildJsonObject {
         put("status", JsonPrimitive("error"))
-        put("error", JsonPrimitive(msg))
+        put("message", JsonPrimitive(msg))
     }.toString()
+
+    private companion object {
+        const val CHANNEL_ID = "plugin_notify"
+    }
 }

@@ -49,11 +49,14 @@ object PluginPermissions {
     /** 发系统通知。 */
     const val NOTIFY = "notify"
 
+    /** 所有文件访问（Android 11+ 特殊权限，读共享存储任意文件，危险）。 */
+    const val ALL_FILES = "all_files"
+
     /** 服务型插件（监听本地端口，MVP 未实现，仅预留）。 */
     const val SERVER = "server"
 
     /** 危险权限集合：安装时需用户确认。 */
-    val DANGEROUS: Set<String> = setOf(NETWORK, FILE_WRITE, CLIPBOARD)
+    val DANGEROUS: Set<String> = setOf(NETWORK, FILE_WRITE, CLIPBOARD, ALL_FILES)
 
     /** 权限标识 → 中文说明，用于 UI 展示。 */
     val LABELS: Map<String, String> = mapOf(
@@ -62,6 +65,7 @@ object PluginPermissions {
         FILE_WRITE to "写入插件文件",
         CLIPBOARD to "读写剪贴板",
         NOTIFY to "发送通知",
+        ALL_FILES to "所有文件访问",
         SERVER to "监听本地端口"
     )
 }

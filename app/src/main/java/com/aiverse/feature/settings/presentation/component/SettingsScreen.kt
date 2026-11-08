@@ -140,6 +140,7 @@ import com.aiverse.feature.onboarding.presentation.onboardingTarget
 import com.aiverse.feature.settings.data.local.ProviderPreset
 import com.aiverse.feature.terminal.data.repository.TerminalSettings
 import com.aiverse.feature.plugins.presentation.PluginListSection
+import com.aiverse.feature.plugins.presentation.PluginRepoSection
 import com.aiverse.feature.terminal.presentation.component.TerminalSettingsSheet
 
 /** 使用手册在线文档站地址。 */
@@ -189,7 +190,8 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     About(R.string.settings_about),
     Appearance(R.string.settings_appearance),
     Plugins(R.string.settings_plugins),
-    Tts(R.string.settings_tts)
+    Tts(R.string.settings_tts),
+    PluginRepo(R.string.plugins_repo_title)
 }
 
 /**
@@ -210,7 +212,8 @@ private fun SettingsSection.depth(): Int = when (this) {
     SettingsSection.SkillDetail,
     SettingsSection.SubAgentDetail,
     SettingsSection.ContainerDownloads,
-    SettingsSection.Log -> 2
+    SettingsSection.Log,
+    SettingsSection.PluginRepo -> 2
     else -> 1
 }
 
@@ -468,6 +471,7 @@ fun SettingsScreen(
         SettingsSection.SubAgentDetail -> SettingsSection.SubAgents
         SettingsSection.SubAgentEditor -> subAgentEditorReturn
         SettingsSection.ContainerDownloads -> SettingsSection.Container
+        SettingsSection.PluginRepo -> SettingsSection.Plugins
         else -> if (expanded) null else SettingsSection.Menu
     }
 
@@ -1291,7 +1295,17 @@ fun SettingsScreen(
                 SettingsSection.Plugins -> {
                     val pluginsViewModel: com.aiverse.feature.plugins.presentation.PluginListViewModel =
                         androidx.hilt.navigation.compose.hiltViewModel()
-                    PluginListSection(viewModel = pluginsViewModel)
+                    PluginListSection(
+                        viewModel = pluginsViewModel,
+                        onOpenRepo = { section = SettingsSection.PluginRepo }
+                    )
+                }
+                SettingsSection.PluginRepo -> {
+                    val pluginsViewModel: com.aiverse.feature.plugins.presentation.PluginListViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    PluginRepoSection(
+                        viewModel = pluginsViewModel
+                    )
                 }
                 SettingsSection.Tts -> {
                     val ttsViewModel: com.aiverse.feature.settings.presentation.TtsSettingsViewModel =
