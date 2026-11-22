@@ -109,14 +109,37 @@ class PluginSystemService @Inject constructor(
         if (file.length() > MAX_SHARE_IMAGE_BYTES) {
             throw PluginHostException("TOO_LARGE", "share image too large")
         }
+        return shareWithStream(file, title, shareImageMime(file.name), CLIP_IMAGE_LABEL)
+    }
+
+    /**
+     * 拉起系统分享面板分享一个工作区文件；[file] 为已解析的本地文件（工作区内或远程下载的缓存副本）。
+     *
+     * 与 [shareImage] 共用 [shareWithStream] 链路，仅 mime 交给 [shareFileMime] 按扩展名推断
+     * （识别不出退回 `application/octet-stream`）。大小兜底沿用 [MAX_SHARE_IMAGE_BYTES]。
+     */
+    suspend fun shareFile(pluginId: String, file: File, title: String? = null): JsonElement {
+        ensureActive(pluginId)
+        if (!file.isFile) throw PluginHostException("NOT_FOUND", "not a file: ${file.path}")
+        if (file.length() > MAX_SHARE_IMAGE_BYTES) {
+            throw PluginHostException("TOO_LARGE", "share file too large")
+        }
+        return shareWithStream(file, title, shareFileMime(file.name), CLIP_FILE_LABEL)
+    }
+
+    /**
+     * ACTION_SEND + FileProvider 的共享主体；[mime] 与 [clipLabel] 由调用方按图片/通用文件各自传入。
+     * 主线程 `startActivity`，无接收方抛 `NO_ACTIVITY`；`subject` 为空则不附带标题。
+     */
+    private suspend fun shareWithStream(file: File, title: String?, mime: String, clipLabel: String): JsonElement {
         val subject = title?.trim()?.takeIf { it.isNotEmpty() }
         withContext(Dispatchers.Main) {
             val uri = FileProvider.getUriForFile(context, context.packageName + FILE_PROVIDER_SUFFIX, file)
             val chooser = Intent.createChooser(
                 Intent(Intent.ACTION_SEND).apply {
-                    type = shareImageMime(file.name)
+                    type = mime
                     putExtra(Intent.EXTRA_STREAM, uri)
-                    clipData = ClipData.newRawUri(CLIP_IMAGE_LABEL, uri)
+                    clipData = ClipData.newRawUri(clipLabel, uri)
                     if (subject != null) putExtra(Intent.EXTRA_SUBJECT, subject)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 },
@@ -234,9 +257,32 @@ class PluginSystemService @Inject constructor(
         else -> "image/*"
     }
 
+    /** 按扩展名给精确 mime；识别不出退回 `application/octet-stream`，让接收方自行决定。 */
+    private fun shareFileMime(name: String): String = when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+        "txt" -> "text/plain"
+        "csv" -> "text/csv"
+        "json" -> "application/json"
+        "xml" -> "application/xml"
+        "pdf" -> "application/pdf"
+        "zip" -> "application/zip"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "gif" -> "image/gif"
+        "webp" -> "image/webp"
+        "bmp" -> "image/bmp"
+        "svg" -> "image/svg+xml"
+        "mp3" -> "audio/mpeg"
+        "wav" -> "audio/wav"
+        "ogg" -> "audio/ogg"
+        "mp4" -> "video/mp4"
+        "webm" -> "video/webm"
+        else -> "application/octet-stream"
+    }
+
     private companion object {
         const val CLIP_LABEL = "text"
         const val CLIP_IMAGE_LABEL = "image"
+        const val CLIP_FILE_LABEL = "file"
         const val MAX_CLIPBOARD_BYTES = 1024 * 1024
         const val MAX_SHARE_CHARS = 100_000
         const val MAX_SHARE_IMAGE_BYTES = 20L * 1024 * 1024

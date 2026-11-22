@@ -5,6 +5,7 @@ import com.aiverse.core.util.boundedLines
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.io.InputStream
 import java.nio.charset.Charset
 import java.nio.file.AtomicMoveNotSupportedException
@@ -136,6 +137,24 @@ class LocalFileAccess @Inject constructor(
         if (!file.exists()) throw NoSuchFileException(file)
         if (file.length() > maxBytes) throw FileReadTooLargeException(maxBytes)
         return file.inputStream().use { it.readBytesBounded(maxBytes) }
+    }
+
+    /** 定位读 `[offset, offset + limit)` 字节窗口：只读所需区间，大文件不整份载入内存。 */
+    override fun readBytes(path: String, offset: Long, limit: Long): ByteArray {
+        val file = resolve(path)
+        if (!file.exists()) throw NoSuchFileException(file)
+        if (offset >= file.length()) return ByteArray(0)
+        RandomAccessFile(file, "r").use { raf ->
+            raf.seek(offset)
+            val buf = ByteArray(minOf(limit, Int.MAX_VALUE.toLong()).toInt())
+            var total = 0
+            while (total < buf.size) {
+                val n = raf.read(buf, total, buf.size - total)
+                if (n < 0) break
+                total += n
+            }
+            return if (total == buf.size) buf else buf.copyOf(total)
+        }
     }
 
     override fun resolvePath(path: String, followFinalLink: Boolean): String =

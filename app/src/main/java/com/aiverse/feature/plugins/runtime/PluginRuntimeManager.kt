@@ -250,7 +250,10 @@ class PluginRuntimeManager @Inject constructor(
             pluginId = pluginId
         )
         return when (method) {
-            "host.fs.read" -> hostCall { paths.read(PluginHostPaths.requireString(params, "path")) }
+            "host.fs.read" -> hostCall {
+                val (offset, limit) = PluginHostPaths.readWindow(params)
+                paths.read(PluginHostPaths.requireString(params, "path"), offset, limit)
+            }
             "host.fs.write" -> hostCall {
                 paths.write(
                     PluginHostPaths.requireString(params, "path"),

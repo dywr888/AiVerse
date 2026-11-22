@@ -137,6 +137,20 @@ interface FileAccessProvider {
     fun readBytes(path: String, maxBytes: Long): ByteArray
 
     /**
+     * 读取 `[offset, offset + limit)` 字节窗口，供插件 `fs.read` 分段预览大文件使用。
+     * [offset] / [limit] 由调用方保证非负且 [limit] > 0；越界部分（offset 超过文件大小）返回空数组。
+     * 默认实现整读后切片，保证第三方实现不被破坏；本地/远程实现 override 以真正省内存。
+     */
+    fun readBytes(path: String, offset: Long, limit: Long): ByteArray {
+        require(offset >= 0 && limit > 0) { "invalid read window: offset=$offset limit=$limit" }
+        val all = readBytes(path)
+        if (offset >= all.size) return ByteArray(0)
+        val from = offset.toInt()
+        val to = minOf(offset + limit, all.size.toLong()).toInt()
+        return all.copyOfRange(from, to)
+    }
+
+    /**
      * 按后端文件系统语义逐段解析路径，返回可用于相等/祖先比较的绝对身份路径。
      * 允许不存在的末级路径；不得先词法消除 `..`，以免改变 `link/..` 的含义。
      * [followFinalLink] 为 false 时保留末级符号链接本身，父路径仍解析链接。

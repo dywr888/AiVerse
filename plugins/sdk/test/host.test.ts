@@ -39,6 +39,15 @@ export type CopyParams = Assert<
 >;
 export type NoParamsMethod = Assert<Equal<HostParamsOf<'host.app.info'>, Record<string, never>>>;
 
+/** `host.fs.read` 的分段读取参数：`offset` / `limit` 可选（字节），不传保持全文窗口行为。 */
+export type FsReadParams = Assert<
+  Equal<HostParamsOf<'host.fs.read'>, { path: string; offset?: number; limit?: number }>
+>;
+/** 返回值保留 `returned` / `nextOffset`，`size` 仍是文件总字节数。 */
+export type FsReadWindowResult = Assert<
+  Equal<HostResultOf<'host.fs.read'>, { content: string; size: number; returned: number; nextOffset: number }>
+>;
+
 // ---------------------------------------------------------------------------
 // 调用形态（纯类型，函数体永不执行）
 // ---------------------------------------------------------------------------
@@ -46,6 +55,9 @@ export type NoParamsMethod = Assert<Equal<HostParamsOf<'host.app.info'>, Record<
 async function implicitInference(): Promise<void> {
   // 返回值按方法名推导；若退化成 unknown / any，下面的赋值会报错
   const read: FsReadResult = await hostCall('host.fs.read', { path: 'a.txt' });
+  // 分段读：offset/limit 可选，缺省行为不变
+  const head: FsReadResult = await hostCall('host.fs.read', { path: 'a.txt', offset: 0, limit: 1024 });
+  const tail: FsReadResult = await hostCall('host.fs.read', { path: 'a.txt', offset: 1024 });
   const info: AppInfo = await hostCall('host.app.info');
   const foreground: boolean = await hostCall('host.app.isForeground');
   const keys: { keys: string[] } = await hostCall('host.secrets.list');
@@ -54,6 +66,8 @@ async function implicitInference(): Promise<void> {
   void hostCall('host.app.info');
 
   void read;
+  void head;
+  void tail;
   void info;
   void foreground;
   void keys;

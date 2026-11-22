@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /** 插件访问宿主文件时的稳定错误码；页面桥与插件进程都按这里的 code 判断。 */
@@ -40,16 +41,47 @@ class PluginHostPaths(
     private val pluginId: String
 ) {
 
-    fun read(path: String): JsonElement {
+    /** 读取全文文本；整文件超过 [MAX_READ_BYTES] 报 `TOO_LARGE`。 */
+    fun read(path: String): JsonElement = read(path, 0L, MAX_READ_BYTES)
+
+    /**
+     * 读取文本，可指定字节窗口 `[offset, offset + limit)` 做大文件分段预览。
+     *
+     * - [offset] 缺省 0；[limit] 缺省 [MAX_READ_BYTES]。
+     * - 不传 [limit] 且整文件超过 [MAX_READ_BYTES] 时才报 `TOO_LARGE`；传了就只读窗口，不再拒绝大文件。
+     * - [offset] 超过文件大小时返回空内容、`nextOffset = size`（EOF 语义，便于分页循环）。
+     * - 窗口按字节切，再对齐到 UTF-8 字符边界（窗口两侧若落在多字节字符中间则丢弃该残缺字符，
+     *   不报错）：`content` 为对齐后的文本，`returned` 为本次返回的字节数，`nextOffset` 指向下一个
+     *   完整字符的字节起点，读到文件尾时等于 [size]。
+     * - `size` 始终是文件总字节数，与老调用方的语义一致。
+     */
+    fun read(path: String, offset: Long, limit: Long): JsonElement {
+        if (offset < 0) throw PluginHostException("PARAM_INVALID", "invalid offset: $path")
+        if (limit <= 0) throw PluginHostException("PARAM_INVALID", "invalid limit: $path")
         val target = resolve(path)
         if (!fileAccess.exists(target) || fileAccess.isDirectory(target)) {
             throw PluginHostException("NOT_FOUND", "not a file: $path")
         }
         val size = fileAccess.fileSize(target)
-        if (size > MAX_READ_BYTES) throw PluginHostException("TOO_LARGE", "file too large: $path")
+        if (offset == 0L && limit == MAX_READ_BYTES && size > MAX_READ_BYTES) {
+            throw PluginHostException("TOO_LARGE", "file too large: $path")
+        }
+        if (offset >= size) {
+            return buildJsonObject {
+                put("content", "")
+                put("size", size)
+                put("returned", 0L)
+                put("nextOffset", size)
+            }
+        }
+        val window = mapIoError(path) { fileAccess.readBytes(target, offset, limit) }
+        val aligned = alignUtf8Window(window)
+        val content = mapIoError(path) { String(aligned.bytes, Charsets.UTF_8) }
         return buildJsonObject {
-            put("content", mapIoError(path) { fileAccess.readFile(target) })
+            put("content", content)
             put("size", size)
+            put("returned", aligned.bytes.size.toLong())
+            put("nextOffset", offset + aligned.bytes.size)
         }
     }
 
@@ -128,6 +160,22 @@ class PluginHostPaths(
         }
         if (fileAccess.fileSize(target) > maxBytes) {
             throw PluginHostException("TOO_LARGE", "share image too large: $path")
+        }
+        return mapIoError(path) { fileAccess.copyToLocal(target) }
+    }
+
+    /**
+     * 解析工作区文件为可分享的本地文件（[FileAccessProvider.copyToLocal]：本地返回映射后的宿主文件，
+     * 远程下载到缓存副本）。供页面桥的 `share.file` 使用；超过 [maxBytes] 抛 `TOO_LARGE`。
+     * 与 [resolveLocalImage] 同构，仅去掉图片语义——不限制扩展名，分享交给系统按 mime 判断。
+     */
+    fun resolveLocalFile(path: String, maxBytes: Long): File {
+        val target = resolve(path)
+        if (!fileAccess.exists(target) || fileAccess.isDirectory(target)) {
+            throw PluginHostException("NOT_FOUND", "not a file: $path")
+        }
+        if (fileAccess.fileSize(target) > maxBytes) {
+            throw PluginHostException("TOO_LARGE", "share file too large: $path")
         }
         return mapIoError(path) { fileAccess.copyToLocal(target) }
     }
@@ -323,6 +371,35 @@ class PluginHostPaths(
         throw PluginHostException("IO_ERROR", e.message ?: "io error: $path")
     }
 
+    /**
+     * 把字节窗口两侧对齐到 UTF-8 字符边界：开头丢弃不完整的续字节，结尾丢弃被截断的多字节字符，
+     * 只保留完整字符（窗口全是残缺续字节时返回空）。返回值即对齐后实际返回的内容字节。
+     */
+    private fun alignUtf8Window(window: ByteArray): AlignedWindow {
+        var start = 0
+        while (start < window.size && window[start].toInt() and 0xC0 == 0x80) start++
+        var end = window.size
+        if (end > start) {
+            var i = end - 1
+            while (i >= start && window[i].toInt() and 0xC0 == 0x80) i--
+            if (i >= start) {
+                val leading = window[i].toInt() and 0xFF
+                val length = when {
+                    leading and 0x80 == 0 -> 1
+                    leading and 0xE0 == 0xC0 -> 2
+                    leading and 0xF0 == 0xE0 -> 3
+                    else -> 4
+                }
+                if (end - i < length) end = i
+            } else {
+                end = start
+            }
+        }
+        return AlignedWindow(window.copyOfRange(start, end))
+    }
+
+    private data class AlignedWindow(val bytes: ByteArray)
+
     private fun ok(): JsonElement = buildJsonObject { put("ok", true) }
 
     companion object {
@@ -339,6 +416,13 @@ class PluginHostPaths(
         fun requireString(params: JsonObject, key: String): String =
             (params[key] as? JsonPrimitive)?.contentOrNull
                 ?: throw PluginHostException("PARAM_MISSING", "missing parameter: $key")
+
+        /** 解析 `fs.read` 的可选 `offset`/`limit`（字节）；缺省回退到 [MAX_READ_BYTES] 全文窗口。 */
+        fun readWindow(params: JsonObject): Pair<Long, Long> {
+            val offset = (params["offset"] as? JsonPrimitive)?.longOrNull ?: 0L
+            val limit = (params["limit"] as? JsonPrimitive)?.longOrNull ?: MAX_READ_BYTES
+            return offset to limit
+        }
 
         /** 插件数据目录在当前执行环境中的真实路径；`data://` 映射到这里。 */
         fun dataRoot(homeResolver: PathHomeResolver, pluginId: String): String =

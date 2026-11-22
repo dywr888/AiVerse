@@ -1244,6 +1244,14 @@ Write to the system clipboard
 
 Invoke the system share for text
 
+`host.share.image`
+
+Invoke the system share for a workspace image
+
+`host.share.file`
+
+Invoke the system share for any workspace file
+
 `host.ui.openUrl`
 
 Open an `http` / `https` link in the system browser
@@ -1355,7 +1363,7 @@ Close the page, open a link, show a full-screen in-page overlay, register a back
 
 `aicode.fs.read/write/list/delete/stat/mkdir/rename/copy/append/readBinary/writeBinary/watch`
 
-File operations. Paths are real absolute paths in the execution environment; `~` expands to home; plugin-private data uses the `data://` virtual root
+File operations. Paths are real absolute paths in the execution environment; `~` expands to home; plugin-private data uses the `data://` virtual root. `fs.read` accepts optional `offset` / `limit` (bytes) to read a large file in windows, and returns two extra fields: `returned` (bytes returned this call) and `nextOffset` (start of the next window, equal to `size` at EOF). `size` is always the total file size in bytes, unaffected by `offset` / `limit`
 
 `aicode.chat.listSessions/createSession/listMessages/sendMessage/setDraft/stop/openSession/getSession/renameSession/pinSession/deleteSession/getRunState/waitForRun/listApprovals/resolveToolApproval/resolveQuestion/resolvePlanApproval`
 
@@ -1384,6 +1392,10 @@ System clipboard
 `aicode.share.text(text, options)`
 
 System share
+
+`aicode.share.image(path, options)` / `file(path, options)`
+
+Share a workspace image / any workspace file
 
 `aicode.secrets.get/set/delete/list`
 

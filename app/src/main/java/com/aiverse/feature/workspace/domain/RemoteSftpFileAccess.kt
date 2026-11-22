@@ -234,6 +234,29 @@ class RemoteSftpFileAccess @Inject constructor(
         RemoteFileInputStream(sftp.open(remote)).use { it.readBytesBounded(maxBytes) }
     }
 
+    /**
+     * 定位读 `[offset, offset + limit)` 字节窗口：`open` 后 seek 到 offset 再按 limit 有界读，
+     * 不整份下载——大文件预览不会触发 [MAX_REMOTE_READ_BYTES] 上限。
+     */
+    override fun readBytes(path: String, offset: Long, limit: Long): ByteArray = withSftp { sftp ->
+        val remote = toRemotePath(path)
+        val attrs = sftp.statExistence(remote) ?: throw NoSuchFileException(File(remote))
+        if (attrs.type == FileMode.Type.DIRECTORY) throw IOException("是目录，无法按文件读取: $remote")
+        if (offset >= attrs.size) return@withSftp ByteArray(0)
+        sftp.open(remote, EnumSet.of(OpenMode.READ)).use { rf ->
+            val buf = ByteArray(minOf(limit, Int.MAX_VALUE.toLong()).toInt())
+            var position = offset
+            var total = 0
+            while (total < buf.size) {
+                val n = rf.read(position, buf, total, buf.size - total)
+                if (n <= 0) break
+                total += n
+                position += n
+            }
+            if (total == buf.size) buf else buf.copyOf(total)
+        }
+    }
+
     override fun resolvePath(path: String, followFinalLink: Boolean): String =
         withSftp { resolveRemotePath(it, toRemotePath(path), followFinalLink) }
 

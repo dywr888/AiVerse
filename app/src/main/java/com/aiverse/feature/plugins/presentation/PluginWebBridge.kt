@@ -387,7 +387,10 @@ class PluginWebBridge(
             buildJsonObject { put("ok", true) }
         }
 
-        "fs.read" -> hostPaths.read(PluginHostPaths.requireString(params, "path"))
+        "fs.read" -> {
+            val (offset, limit) = PluginHostPaths.readWindow(params)
+            hostPaths.read(PluginHostPaths.requireString(params, "path"), offset, limit)
+        }
         "fs.write" -> hostPaths.write(
             PluginHostPaths.requireString(params, "path"),
             PluginHostPaths.requireString(params, "content")
@@ -487,6 +490,11 @@ class PluginWebBridge(
             val path = PluginHostPaths.requireString(params, "path")
             val target = hostPaths.resolveLocalImage(path, MAX_SHARE_IMAGE_BYTES)
             systemService.shareImage(page.pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
+        }
+        "share.file" -> {
+            val path = PluginHostPaths.requireString(params, "path")
+            val target = hostPaths.resolveLocalFile(path, MAX_SHARE_IMAGE_BYTES)
+            systemService.shareFile(page.pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
         }
         "ui.openUrl" -> systemService.openUrl(
             page.pluginId,

@@ -557,6 +557,8 @@ definePlugin({ handlers: {
 | `host.clipboard.read` | 读取系统剪贴板 |
 | `host.clipboard.write` | 写入系统剪贴板 |
 | `host.share.text` | 调起系统分享文本 |
+| `host.share.image` | 调起系统分享工作区图片 |
+| `host.share.file` | 调起系统分享工作区任意文件 |
 | `host.ui.openUrl` | 用系统浏览器打开 `http` / `https` 链接 |
 | `host.app.info` | 读取应用信息 |
 | `host.log` | 写宿主日志，便于排查 |
@@ -614,7 +616,7 @@ await window.aicode.ui.openUrl('https://example.com');
 | `aicode.tip(options)` | 在对话内显示可关闭提示条（可带点击回调） |
 | `aicode.app.info()` / `aicode.app.isForeground()` | 应用信息 / 前后台状态 |
 | `aicode.ui.close()` / `openUrl(url)` / `setOverlay(visible, rect)` / `onBack(handler)` | 关闭页面、打开链接、页面内全屏弹层、注册返回处理 |
-| `aicode.fs.read/write/list/delete/stat/mkdir/rename/copy/append/readBinary/writeBinary/watch` | 文件操作。路径为执行环境的真实绝对路径；`~` 展开到 home；插件私有数据用 `data://` 虚拟根 |
+| `aicode.fs.read/write/list/delete/stat/mkdir/rename/copy/append/readBinary/writeBinary/watch` | 文件操作。路径为执行环境的真实绝对路径；`~` 展开到 home；插件私有数据用 `data://` 虚拟根。`fs.read` 支持可选 `offset` / `limit`（字节）分段读取大文件，返回额外字段 `returned`（本次返回字节数）与 `nextOffset`（下一窗口起点，读到尾等于 `size`）；`size` 始终是文件总字节数，不受 `offset` / `limit` 影响 |
 | `aicode.chat.listSessions/createSession/listMessages/sendMessage/setDraft/stop/openSession/getSession/renameSession/pinSession/deleteSession/getRunState/waitForRun/listApprovals/resolveToolApproval/resolveQuestion/resolvePlanApproval` | 会话与消息；读取范围限定当前工作区 |
 | `aicode.model.listProviders/listModels/create/close/start/read/cancel/stream` | 模型句柄（需 `modelAccess`） |
 | `aicode.tools.list/execute/pending/resolve` | 宿主工具目录与执行；只允许内置 / MCP 工具，受授权策略约束 |
@@ -622,6 +624,7 @@ await window.aicode.ui.openUrl('https://example.com');
 | `aicode.http.request(options)` | 宿主代理的 HTTP 请求 |
 | `aicode.clipboard.read()` / `write(text)` | 系统剪贴板 |
 | `aicode.share.text(text, options)` | 系统分享 |
+| `aicode.share.image(path, options)` / `file(path, options)` | 分享工作区图片 / 任意文件 |
 | `aicode.secrets.get/set/delete/list` | 插件私有的加密键值存储；`list` 只返回键名 |
 | `aicode.bash(command, options)` | 在当前工作区执行一次性 Shell 命令，返回 `{ output, exitCode, truncated }` |
 | `aicode.terminal.run/poll/stop/close/write/list` | 共享终端标签：命令后台运行，页面关闭也不停止 |

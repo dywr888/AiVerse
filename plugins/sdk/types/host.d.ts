@@ -167,7 +167,12 @@ export type ToolResultStatus = 'success' | 'error' | 'partial';
 
 export interface FsReadResult {
   content: string;
+  /** 文件总字节数，不受 `offset` / `limit` 影响。 */
   size: number;
+  /** 本次 `content` 的字节数。 */
+  returned: number;
+  /** 下一个窗口的字节起点；读到文件尾时等于 `size`。 */
+  nextOffset: number;
 }
 
 export interface FsBinaryResult {
@@ -794,7 +799,10 @@ export interface PortForwardOptions {
  */
 export interface HostMethodMap {
   // 文件
-  'host.fs.read': { params: { path: string }; result: FsReadResult };
+  'host.fs.read': {
+    params: { path: string; offset?: number; limit?: number };
+    result: FsReadResult;
+  };
   'host.fs.write': { params: { path: string; content: string }; result: OkResult };
   'host.fs.list': { params: { path: string }; result: FsListResult };
   'host.fs.delete': { params: { path: string }; result: OkResult };
@@ -975,6 +983,8 @@ export interface HostMethodMap {
   'host.clipboard.read': { params: NoParams; result: { text: string } };
   'host.clipboard.write': { params: { text: string }; result: OkResult };
   'host.share.text': { params: { text: string; title?: string }; result: OkResult };
+  'host.share.image': { params: { path: string; title?: string }; result: OkResult };
+  'host.share.file': { params: { path: string; title?: string }; result: OkResult };
   'host.ui.openUrl': { params: { url: string }; result: OkResult };
 
   // 日志

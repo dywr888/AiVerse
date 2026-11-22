@@ -199,9 +199,21 @@ export interface FsWatchOptions extends FsOptions {
   recursive?: boolean;
 }
 
+export interface FsReadOptions extends FsOptions {
+  /** 起始字节，缺省 0；负数返回 `PARAM_INVALID`。 */
+  offset?: number;
+  /** 最多读取的字节数，缺省 512KiB（整文件上限）；<=0 返回 `PARAM_INVALID`。 */
+  limit?: number;
+}
+
 export interface FsReadResult {
   content: string;
+  /** 文件总字节数，不受 `offset` / `limit` 影响。 */
   size: number;
+  /** 本次 `content` 的字节数。 */
+  returned: number;
+  /** 下一个窗口的字节起点；读到文件尾时等于 `size`。 */
+  nextOffset: number;
 }
 
 export interface FsBinaryResult {
@@ -916,7 +928,7 @@ export interface AicodeBridge {
   };
 
   fs: {
-    read(path: string, options?: FsOptions): Promise<FsReadResult>;
+    read(path: string, options?: FsReadOptions): Promise<FsReadResult>;
     write(path: string, content: string, options?: FsOptions): Promise<void>;
     list(path: string, options?: FsOptions): Promise<FsListResult>;
     delete(path: string, options?: FsOptions): Promise<void>;
@@ -946,6 +958,8 @@ export interface AicodeBridge {
     text(text: string, options?: { title?: string }): Promise<{ ok: boolean }>;
     /** 分享工作区里的一张图片（生图工作台导出）；`path` 为工作区容器路径，可带 `~/`。 */
     image(path: string, options?: { title?: string }): Promise<{ ok: boolean }>;
+    /** 分享工作区里的任意文件；`path` 为工作区容器路径，可带 `~/`。 */
+    file(path: string, options?: { title?: string }): Promise<{ ok: boolean }>;
   };
 
   /** 插件私有加密键值存储；值上限 64 KiB。 */

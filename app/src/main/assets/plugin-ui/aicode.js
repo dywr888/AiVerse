@@ -422,7 +422,10 @@
     // 插件自己的数据目录用稳定的 data:// 虚拟根（如 data://config.json），与插件 ID 和执行环境无关。
     fs: {
       read: function (path, options) {
-        return call('fs.read', fileParams(path, options));
+        var params = fileParams(path, options);
+        if (options && options.offset != null) params.offset = Number(options.offset);
+        if (options && options.limit != null) params.limit = Number(options.limit);
+        return call('fs.read', params);
       },
       write: function (path, content, options) {
         var params = fileParams(path, options);
@@ -516,6 +519,11 @@
         var params = { path: String(path) };
         if (options && options.title != null) params.title = String(options.title);
         return call('share.image', params);
+      },
+      file: function (path, options) {
+        var params = { path: String(path) };
+        if (options && options.title != null) params.title = String(options.title);
+        return call('share.file', params);
       }
     },
     // 插件私有的加密键值存储；list 只返回键名。
