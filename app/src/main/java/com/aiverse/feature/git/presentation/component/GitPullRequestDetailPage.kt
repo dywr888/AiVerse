@@ -359,7 +359,7 @@ private fun PullRequestDetailContent(
                         onClick = { closeConfirmVisible = true },
                         enabled = !actionBusy
                     ) { Text(stringResource(R.string.git_pr_action_close)) }
-                } else if (!pr.merged) {
+                } else if (!pr.isMerged) {
                     TextButton(onClick = onReopenPull, enabled = !actionBusy) {
                         Text(stringResource(R.string.git_pr_action_reopen))
                     }

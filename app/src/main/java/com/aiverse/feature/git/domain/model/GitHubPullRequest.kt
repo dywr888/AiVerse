@@ -41,9 +41,15 @@ data class GitHubPullRequest(
     val userLogin: String get() = user?.login ?: ""
     val isOpen: Boolean get() = state == "open"
 
+    /**
+     * 是否已合并。列表接口（GET /pulls）返回的摘要对象不含 merged 布尔字段（恒为 false），
+     * 但带 merged_at 时间戳；详情接口才返回 merged=true。二者取或，保证列表/详情判定一致。
+     */
+    val isMerged: Boolean get() = merged || mergedAt != null
+
     /** 列表/详情展示用的状态：merged 优先于 closed。 */
     val displayState: String get() = when {
-        merged -> "merged"
+        isMerged -> "merged"
         state == "closed" -> "closed"
         else -> "open"
     }

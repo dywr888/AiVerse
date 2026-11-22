@@ -5,6 +5,8 @@ import com.aiverse.feature.git.domain.model.GitHubCheckSummary
 import com.aiverse.feature.git.domain.model.GitHubPullRequest
 import com.aiverse.feature.git.domain.model.sortPullRequests
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** PR 状态归并、CI 汇总与列表排序的纯逻辑用例。 */
@@ -16,6 +18,21 @@ class GitHubPullRequestTest {
     fun displayState_mergedWinsOverClosed() {
         val pr = GitHubPullRequest(number = 1, title = "t", state = "closed", merged = true)
         assertEquals("merged", pr.displayState)
+    }
+
+    @Test
+    fun displayState_mergedAtAloneTreatedAsMerged() {
+        // 列表接口返回的摘要对象 merged 恒为 false，只能靠 merged_at 识别已合并。
+        val pr = GitHubPullRequest(number = 1, title = "t", state = "closed", mergedAt = "2024-01-01T00:00:00Z")
+        assertEquals("merged", pr.displayState)
+        assertTrue(pr.isMerged)
+    }
+
+    @Test
+    fun displayState_closedWithoutMergeAtIsClosed() {
+        val pr = GitHubPullRequest(number = 1, title = "t", state = "closed", merged = false, mergedAt = null)
+        assertEquals("closed", pr.displayState)
+        assertFalse(pr.isMerged)
     }
 
     @Test
